@@ -1,0 +1,645 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RoleType {
+  ADMIN
+  MANAGER
+  FRONT_DESK_STAFF
+  BILLING_STAFF
+  MEDICAL_RECORDS_STAFF
+  CLINICAL_STAFF
+  READ_ONLY
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  RESCHEDULE_REQUESTED
+  RESCHEDULED
+  CANCELLED
+  CHECKED_IN
+  WAITING
+  WITH_PROVIDER
+  COMPLETED
+  WALK_OUT
+  NO_SHOW
+  FOLLOW_UP_NEEDED
+}
+
+enum WalkInVisitType {
+  FIRST_TIME
+  RETURNING
+}
+
+enum WalkInOnboardingStatus {
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum PhysicalCheckInType {
+  APPOINTMENT
+  WALK_IN
+}
+
+enum WaitingRoomState {
+  CHECKED_IN
+  WAITING
+  CALLED
+  WITH_PROVIDER
+  COMPLETED
+  WALK_OUT
+  NO_SHOW
+}
+
+enum StaffInterventionStatus {
+  WALK_IN
+  HUMAN_TAKEOVER
+  AI_ESCALATED
+  STAFF_REVIEW_REQUIRED
+  RESOLVED
+  FOLLOW_UP_NEEDED
+  URGENT
+}
+
+enum StaffTaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum StaffTaskPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum CommunicationStatus {
+  PENDING
+  SENT
+  DELIVERED
+  ANSWERED
+  FAILED
+  NO_ANSWER
+  BOUNCED
+  RESPONDED
+  ESCALATED
+}
+
+enum CommunicationChannel {
+  CALL
+  SMS
+  EMAIL
+}
+
+enum AgentType {
+  MASTER_ORCHESTRATOR
+  FRONT_DESK_AI
+  INTAKE_AI
+  APPOINTMENT_AI
+  VOICE_CALL_AI
+  SMS_REMINDER_AI
+  EMAIL_AI
+  STAFF_ASSISTANT_AI
+  ESCALATION_AI
+}
+
+enum AgentProposalStatus {
+  PENDING_APPROVAL
+  APPROVED
+  REJECTED
+  ESCALATED
+  EXECUTED
+}
+
+enum CallDirection {
+  INBOUND
+  OUTBOUND
+}
+
+enum TimelineEventType {
+  APPOINTMENT_CREATED
+  APPOINTMENT_UPDATED
+  APPOINTMENT_STATUS_CHANGED
+  CLIENT_CREATED
+  CLIENT_UPDATED
+  CONSENT_RECORDED
+  STAFF_INTERVENTION_CREATED
+  STAFF_INTERVENTION_UPDATED
+  STAFF_TASK_CREATED
+  STAFF_TASK_COMPLETED
+  STAFF_OVERRIDE
+  NOTE_ADDED
+  SYSTEM
+  COMMUNICATION_CALL
+  COMMUNICATION_SMS
+  COMMUNICATION_EMAIL
+  AGENT_ACTION
+  AGENT_PROPOSAL_CREATED
+  AGENT_PROPOSAL_APPROVED
+  AGENT_PROPOSAL_REJECTED
+  AGENT_PROPOSAL_ESCALATED
+  EMERGENCY_DETECTED
+  WALK_IN_REGISTERED
+  WALK_IN_ONBOARDING
+  WALK_IN_COMPLETED
+  PHYSICAL_CHECK_IN
+  WAITING_ROOM_ARRIVED
+  WAITING_ROOM_STATUS_CHANGED
+  PROVIDER_NOTIFIED
+}
+
+enum ConsentType {
+  SMS
+  EMAIL
+  PHONE
+  RECORDS_RELEASE
+  TREATMENT
+  MARKETING
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  STATUS_CHANGE
+  STAFF_OVERRIDE
+  VIEW
+}
+
+model Role {
+  id          String   @id @default(cuid())
+  type        RoleType @unique
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  users       User[]
+}
+
+model User {
+  id                  String               @id @default(cuid())
+  email               String               @unique
+  passwordHash        String
+  firstName           String
+  lastName            String
+  status              UserStatus           @default(ACTIVE)
+  forcePasswordReset  Boolean              @default(false)
+  roleId              String
+  role                Role                 @relation(fields: [roleId], references: [id])
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+  lastLoginAt         DateTime?
+  passwordResetTokens PasswordResetToken[]
+  staffTasks          StaffTask[]          @relation("AssignedStaff")
+  createdTasks        StaffTask[]          @relation("CreatedByUser")
+  interventions       StaffIntervention[]  @relation("InterventionStaff")
+  auditLogs           AuditLog[]           @relation("AuditActor")
+  timelineEvents      ClientTimelineEvent[] @relation("TimelineActor")
+  callLogs            CallLog[]            @relation("CallInitiator")
+  smsLogs             SmsLog[]             @relation("SmsInitiator")
+  emailLogs           EmailLog[]           @relation("EmailInitiator")
+  agentActions         AgentAction[]        @relation("AgentActionInitiator")
+  reviewedAgentActions AgentAction[]        @relation("AgentActionReviewer")
+  staffOverrides       StaffOverride[]      @relation("StaffOverrideActor")
+  walkInVisitsCreated  WalkInVisit[]        @relation("WalkInCreator")
+  physicalCheckIns     PhysicalCheckIn[]    @relation("CheckInStaff")
+
+  @@index([roleId])
+  @@index([status])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model Client {
+  id                       String                @id @default(cuid())
+  firstName                String
+  lastName                 String
+  email                    String?
+  phone                    String?
+  dateOfBirth              DateTime?
+  mrn                      String?               @unique
+  notes                    String?
+  addressLine1             String?
+  addressLine2             String?
+  city                     String?
+  state                    String?
+  postalCode               String?
+  preferredLanguage        String?               @default("en")
+  communicationPreferences Json?
+  insurancePlaceholder     Json?
+  documentsPlaceholder     Json?
+  isActive                 Boolean               @default(true)
+  createdAt                DateTime              @default(now())
+  updatedAt                DateTime              @updatedAt
+  appointments             Appointment[]
+  staffTasks               StaffTask[]
+  interventions            StaffIntervention[]
+  timelineEvents           ClientTimelineEvent[]
+  consentRecords           ConsentRecord[]
+  callLogs                 CallLog[]
+  smsLogs                  SmsLog[]
+  emailLogs                EmailLog[]
+  agentActions             AgentAction[]
+  walkInVisits             WalkInVisit[]
+  physicalCheckIns         PhysicalCheckIn[]
+  waitingRoomEntries       WaitingRoomStatus[]
+
+  @@index([lastName, firstName])
+  @@index([phone])
+  @@index([email])
+}
+
+model Appointment {
+  id              String            @id @default(cuid())
+  clientId        String
+  client          Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  scheduledAt     DateTime
+  durationMinutes Int               @default(30)
+  status          AppointmentStatus @default(SCHEDULED)
+  reason          String?
+  providerName    String?
+  location        String?
+  notes           String?
+  staffOverride           Boolean           @default(false)
+  staffOverrideByUserId   String?
+  staffOverrideByName     String?
+  staffOverrideReason     String?
+  staffOverrideAt         DateTime?
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+  callLogs                CallLog[]
+  smsLogs         SmsLog[]
+  emailLogs       EmailLog[]
+  agentActions        AgentAction[]
+  walkInVisits        WalkInVisit[]
+  physicalCheckIns    PhysicalCheckIn[]
+  waitingRoomEntries  WaitingRoomStatus[]
+
+  @@index([clientId])
+  @@index([scheduledAt])
+  @@index([status])
+}
+
+model WalkInVisit {
+  id                      String                 @id @default(cuid())
+  clientId                String
+  client                  Client                 @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  visitType               WalkInVisitType
+  onboardingStatus        WalkInOnboardingStatus @default(IN_PROGRESS)
+  onboardingStep          String?
+  staffNotes              String?
+  insurancePlaceholder    Json?
+  documentsPlaceholder    Json?
+  appointmentId           String?
+  appointment             Appointment?           @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  createdById             String
+  createdBy               User                   @relation("WalkInCreator", fields: [createdById], references: [id])
+  staffOverride           Boolean                @default(true)
+  staffOverrideByUserId   String?
+  staffOverrideByName     String?
+  staffOverrideReason     String?
+  staffOverrideAt         DateTime?
+  arrivedAt               DateTime               @default(now())
+  completedAt             DateTime?
+  createdAt               DateTime               @default(now())
+  updatedAt               DateTime               @updatedAt
+  physicalCheckIns        PhysicalCheckIn[]
+
+  @@index([clientId])
+  @@index([onboardingStatus])
+  @@index([arrivedAt])
+}
+
+model PhysicalCheckIn {
+  id                    String              @id @default(cuid())
+  clientId              String
+  client                Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  appointmentId         String?
+  appointment           Appointment?        @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  walkInVisitId         String?
+  walkInVisit           WalkInVisit?        @relation(fields: [walkInVisitId], references: [id], onDelete: SetNull)
+  checkInType           PhysicalCheckInType
+  arrivedAt             DateTime            @default(now())
+  checkedInById         String
+  checkedInBy           User                @relation("CheckInStaff", fields: [checkedInById], references: [id])
+  notes                 String?
+  staffOverride           Boolean             @default(true)
+  staffOverrideByUserId   String?
+  staffOverrideByName     String?
+  staffOverrideReason     String?
+  staffOverrideAt         DateTime?
+  createdAt               DateTime            @default(now())
+  updatedAt               DateTime            @updatedAt
+  waitingRoom           WaitingRoomStatus?
+
+  @@index([clientId])
+  @@index([appointmentId])
+  @@index([arrivedAt])
+}
+
+model WaitingRoomStatus {
+  id                  String           @id @default(cuid())
+  physicalCheckInId   String           @unique
+  physicalCheckIn     PhysicalCheckIn  @relation(fields: [physicalCheckInId], references: [id], onDelete: Cascade)
+  clientId            String
+  client              Client           @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  appointmentId       String?
+  appointment         Appointment?     @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  state               WaitingRoomState @default(WAITING)
+  queuePosition       Int?
+  location            String?
+  arrivedAt           DateTime
+  calledAt            DateTime?
+  withProviderAt      DateTime?
+  completedAt         DateTime?
+  walkOutAt           DateTime?
+  waitDurationMinutes Int?
+  providerNotifiedAt  DateTime?
+  staffNotifiedAt     DateTime?
+  staffOverride           Boolean          @default(true)
+  staffOverrideByUserId   String?
+  staffOverrideByName     String?
+  staffOverrideReason     String?
+  staffOverrideAt         DateTime?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  @@index([clientId])
+  @@index([appointmentId])
+  @@index([state])
+  @@index([arrivedAt])
+}
+
+model CallLog {
+  id              String              @id @default(cuid())
+  clientId        String
+  client          Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  appointmentId   String?
+  appointment     Appointment?        @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  status          CommunicationStatus @default(PENDING)
+  purpose         String
+  channel         CommunicationChannel @default(CALL)
+  direction       CallDirection
+  phoneNumber     String?
+  durationSeconds Int?
+  externalRef     String?
+  provider        String              @default("twilio_stub")
+  transcript      String?
+  metadata        Json?
+  initiatedById   String?
+  initiatedBy     User?               @relation("CallInitiator", fields: [initiatedById], references: [id], onDelete: SetNull)
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([clientId])
+  @@index([appointmentId])
+  @@index([status])
+  @@index([clientId, appointmentId, purpose, channel])
+}
+
+model SmsLog {
+  id            String              @id @default(cuid())
+  clientId      String
+  client        Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  appointmentId String?
+  appointment   Appointment?        @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  status        CommunicationStatus @default(PENDING)
+  purpose       String
+  channel       CommunicationChannel @default(SMS)
+  toNumber      String?
+  fromNumber    String?
+  messageBody   String?
+  externalRef   String?
+  provider      String              @default("twilio_stub")
+  metadata      Json?
+  initiatedById String?
+  initiatedBy   User?               @relation("SmsInitiator", fields: [initiatedById], references: [id], onDelete: SetNull)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([clientId])
+  @@index([appointmentId])
+  @@index([status])
+  @@index([clientId, appointmentId, purpose, channel])
+}
+
+model EmailLog {
+  id            String              @id @default(cuid())
+  clientId      String
+  client        Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  appointmentId String?
+  appointment   Appointment?        @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  status        CommunicationStatus @default(PENDING)
+  purpose       String
+  channel       CommunicationChannel @default(EMAIL)
+  subject       String?
+  body          String?
+  toEmail       String?
+  fromEmail     String?
+  externalRef   String?
+  provider      String              @default("email_stub")
+  metadata      Json?
+  initiatedById String?
+  initiatedBy   User?               @relation("EmailInitiator", fields: [initiatedById], references: [id], onDelete: SetNull)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@index([clientId])
+  @@index([appointmentId])
+  @@index([status])
+  @@index([clientId, appointmentId, purpose, channel])
+}
+
+model AgentAction {
+  id                String               @id @default(cuid())
+  clientId          String
+  client            Client               @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  appointmentId     String?
+  appointment       Appointment?         @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  agentType         AgentType              @default(ESCALATION_AI)
+  proposalStatus    AgentProposalStatus    @default(PENDING_APPROVAL)
+  purpose           String
+  channel           CommunicationChannel
+  actionType        String
+  agentName         String                 @default("Legacy Agent")
+  description       String?
+  proposedPayload   Json?
+  orchestratorNotes String?
+  isEmergency       Boolean              @default(false)
+  automationHalted        Boolean              @default(false)
+  staffOverride           Boolean              @default(false)
+  staffOverrideByUserId   String?
+  staffOverrideByName     String?
+  staffOverrideReason     String?
+  staffOverrideAt         DateTime?
+  callLogId               String?
+  smsLogId          String?
+  emailLogId        String?
+  metadata          Json?
+  initiatedById     String?
+  initiatedBy       User?                @relation("AgentActionInitiator", fields: [initiatedById], references: [id], onDelete: SetNull)
+  reviewedById      String?
+  reviewedBy        User?                @relation("AgentActionReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  reviewedAt        DateTime?
+  executedAt        DateTime?
+  createdAt         DateTime               @default(now())
+  updatedAt         DateTime               @updatedAt
+
+  @@index([clientId])
+  @@index([appointmentId])
+  @@index([proposalStatus])
+  @@index([agentType])
+  @@index([isEmergency])
+  @@index([clientId, appointmentId, purpose, channel, agentType, actionType])
+}
+
+model StaffTask {
+  id            String            @id @default(cuid())
+  title         String
+  description   String?
+  status        StaffTaskStatus   @default(PENDING)
+  priority      StaffTaskPriority @default(NORMAL)
+  clientId      String?
+  client        Client?           @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  assignedToId  String?
+  assignedTo    User?             @relation("AssignedStaff", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdById   String
+  createdBy     User              @relation("CreatedByUser", fields: [createdById], references: [id])
+  dueAt         DateTime?
+  completedAt   DateTime?
+  staffOverride           Boolean           @default(true)
+  staffOverrideByUserId   String?
+  staffOverrideByName     String?
+  staffOverrideReason     String?
+  staffOverrideAt         DateTime?
+  createdAt               DateTime          @default(now())
+  updatedAt               DateTime          @updatedAt
+
+  @@index([clientId])
+  @@index([assignedToId])
+  @@index([status])
+}
+
+model StaffIntervention {
+  id            String                  @id @default(cuid())
+  clientId      String?
+  client        Client?                 @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  status        StaffInterventionStatus
+  title         String
+  description   String?
+  assignedToId  String?
+  assignedTo    User?                   @relation("InterventionStaff", fields: [assignedToId], references: [id], onDelete: SetNull)
+  staffOverride           Boolean                 @default(true)
+  staffOverrideByUserId   String?
+  staffOverrideByName     String?
+  staffOverrideReason     String?
+  staffOverrideAt         DateTime?
+  aiContext               Json?
+  resolvedAt              DateTime?
+  createdAt               DateTime                @default(now())
+  updatedAt               DateTime                @updatedAt
+
+  @@index([clientId])
+  @@index([status])
+  @@index([assignedToId])
+}
+
+model StaffOverride {
+  id           String   @id @default(cuid())
+  actorUserId  String
+  actor        User     @relation("StaffOverrideActor", fields: [actorUserId], references: [id], onDelete: Cascade)
+  actorName    String
+  actorRole    RoleType
+  targetType   String
+  targetId     String
+  reason       String?
+  createdAt    DateTime @default(now())
+
+  @@index([actorUserId])
+  @@index([targetType, targetId])
+  @@index([createdAt])
+}
+
+model AuditLog {
+  id          String      @id @default(cuid())
+  action      AuditAction
+  entityType  String
+  entityId    String?
+  targetType  String?
+  targetId    String?
+  userId      String?
+  user        User?       @relation("AuditActor", fields: [userId], references: [id], onDelete: SetNull)
+  actorUserId String?
+  actorName   String?
+  actorRole   RoleType?
+  clientId    String?
+  metadata    Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime    @default(now())
+
+  @@index([entityType, entityId])
+  @@index([targetType, targetId])
+  @@index([userId])
+  @@index([actorUserId])
+  @@index([clientId])
+  @@index([createdAt])
+}
+
+model ClientTimelineEvent {
+  id          String            @id @default(cuid())
+  clientId    String
+  client      Client            @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  eventType   TimelineEventType
+  title       String
+  description String?
+  metadata    Json?
+  actorUserId String?
+  actor       User?             @relation("TimelineActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  createdAt   DateTime          @default(now())
+
+  @@index([clientId, createdAt])
+}
+
+model ConsentRecord {
+  id         String      @id @default(cuid())
+  clientId   String
+  client     Client      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  type       ConsentType
+  granted    Boolean
+  version    String      @default("1.0")
+  recordedAt DateTime    @default(now())
+  expiresAt  DateTime?
+  notes      String?
+  createdAt  DateTime    @default(now())
+
+  @@index([clientId])
+}

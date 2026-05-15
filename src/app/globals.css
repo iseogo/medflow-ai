@@ -1,0 +1,43 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 210 20% 98%;
+    --foreground: 210 25% 12%;
+    --card: 0 0% 100%;
+    --border: 210 16% 90%;
+    --muted: 210 14% 96%;
+    --accent: 192 48% 43%;
+  }
+
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased;
+  }
+}
+
+@layer components {
+  .medflow-card {
+    @apply rounded-xl border border-slate-200 bg-white shadow-sm;
+  }
+
+  .medflow-input {
+    @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm
+      placeholder:text-slate-400 focus:border-medflow-500 focus:outline-none
+      focus:ring-2 focus:ring-medflow-500/20;
+  }
+
+  .medflow-btn-primary {
+    @apply inline-flex items-center justify-center rounded-lg bg-medflow-600 px-4 py-2
+      text-sm font-medium text-white transition hover:bg-medflow-700
+      focus:outline-none focus:ring-2 focus:ring-medflow-500 focus:ring-offset-2
+      disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .medflow-btn-secondary {
+    @apply inline-flex items-center justify-center rounded-lg border border-slate-300
+      bg-white px-4 py-2 text-sm font-medium text-slate-700 transition
+      hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-medflow-500/20;
+  }
+}

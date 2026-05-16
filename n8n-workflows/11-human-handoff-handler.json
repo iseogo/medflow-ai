@@ -1,0 +1,500 @@
+{
+  "name": "MedFlow — Human Handoff (template)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## TEMPLATE ONLY — no secrets in this file\n\n**Do not** commit real API keys, tokens, phone numbers, or patient data.\n\nConfigure in n8n **Settings → Variables** (placeholders):\n- `MEDFLOW_API_BASE_URL` — e.g. http://localhost:3000\n- `MEDFLOW_WEBHOOK_SECRET` — match MedFlow WEBHOOK_SECRET\n- `MEDFLOW_TEST_MODE` — default `true` (no live traffic)\n\nCarrier credential **names** (create in n8n Credentials, then set IDs):\n- `TWILIO_CREDENTIAL_ID`\n- `EMAIL_CREDENTIAL_ID`\n- `VAPI_CREDENTIAL_ID`\n- `OPENAI_CREDENTIAL_ID`\n- `GOOGLE_CREDENTIAL_ID`\n\nSet `MEDFLOW_TEST_MODE=false` only after all credentials are configured manually. Until then, workflows return dry-run responses and **do not** place calls, SMS, or email.",
+        "height": 420,
+        "width": 440,
+        "color": 4
+      },
+      "id": "7912d607-0bb8-41e3-a117-722666d1671a",
+      "name": "Safety — Template Only",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -420,
+        -320
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## MedFlow — Human Handoff\n\nHuman takeover template.\n\n**Webhook path:** `medflow/human-handoff`\n**MedFlow env (outbound from MedFlow):** `N8N_WEBHOOK_STAFF_INTERVENTION`\n**Callback:** `POST /api/webhooks/staff-intervention`\n\nEscalation from voice AI or orchestrator.",
+        "height": 280,
+        "width": 400,
+        "color": 5
+      },
+      "id": "13ee0d8f-b5a1-4cf6-ad4d-d4a2a88509ca",
+      "name": "Workflow Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Carrier nodes (add manually)\n\nThis template does **not** send real traffic.\n\nWhen `MEDFLOW_TEST_MODE=false`, wire carrier nodes using n8n credential IDs:\n\n**This workflow:** \n\nPlaceholders: TWILIO_CREDENTIAL_ID, EMAIL_CREDENTIAL_ID, VAPI_CREDENTIAL_ID, OPENAI_CREDENTIAL_ID, GOOGLE_CREDENTIAL_ID",
+        "height": 220,
+        "width": 360,
+        "color": 6
+      },
+      "id": "8a5ba15d-65bd-49e4-84d2-c182a22dc062",
+      "name": "Carrier Placeholders",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1480,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "medflow/human-handoff",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "f80bfd8e-d002-41c0-a849-f5c138e04c77",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "8fbddf04-572e-4a53-80fd-1195ab83facf"
+    },
+    {
+      "parameters": {
+        "jsCode": "const required = [\"interventionId\",\"status\"];\nconst body = $input.first().json.body ?? $input.first().json;\nconst errors = [];\nfor (const field of required) {\n  const v = body[field] ?? body.payload?.[field];\n  if (v === undefined || v === null || v === '') errors.push('Missing: ' + field);\n}\nreturn [{\n  json: {\n    valid: errors.length === 0,\n    errors,\n    body,\n    workflow: body.workflow ?? body.workflowName ?? '',\n    validatedAt: new Date().toISOString(),\n  }\n}];"
+      },
+      "id": "1a480d21-b002-4fdf-985e-6b74571ff1ff",
+      "name": "Validate Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "d8434f8d-37e0-4826-972d-557c9f82e9c6",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "f74a8a95-e5e9-42ab-aec9-81a74c711029",
+      "name": "Validation OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        500,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $('Validate Payload').first().json.body ?? {};\nconst testMode = String($env.MEDFLOW_TEST_MODE ?? 'true').toLowerCase() !== 'false';\nconst medflowBase = ($env.MEDFLOW_API_BASE_URL ?? '').trim();\nconst medflowSecret = ($env.MEDFLOW_WEBHOOK_SECRET ?? '').trim();\nconst medflowReady = medflowBase.length > 0 && medflowSecret.length > 0;\nconst carrierIds = {\n  twilio: ($env.TWILIO_CREDENTIAL_ID ?? '').trim(),\n  email: ($env.EMAIL_CREDENTIAL_ID ?? '').trim(),\n  vapi: ($env.VAPI_CREDENTIAL_ID ?? '').trim(),\n  openai: ($env.OPENAI_CREDENTIAL_ID ?? '').trim(),\n  google: ($env.GOOGLE_CREDENTIAL_ID ?? '').trim(),\n};\nconst liveMode = !testMode && medflowReady;\nconst carriersConfigured = Object.values(carrierIds).some((v) => v.length > 0);\nreturn [{\n  json: {\n    testMode,\n    liveMode,\n    medflowReady,\n    carriersConfigured,\n    carrierIds,\n    note: testMode\n      ? 'TEST MODE — no outbound calls/SMS/email; MedFlow HTTP skipped unless liveMode'\n      : (liveMode ? 'LIVE MODE — configure carrier credentials before enabling sends' : 'Set MEDFLOW_API_BASE_URL and MEDFLOW_WEBHOOK_SECRET'),\n  }\n}];"
+      },
+      "id": "7c9e9f7a-a7b9-4798-ac45-1f39797bc79c",
+      "name": "Test Mode Gate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        740,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "47d565ff-103a-477f-a68c-0cc5be5195b5",
+              "leftValue": "={{ $json.liveMode }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "9f96c37e-2feb-41fb-ae7a-9a83ea8d3f5b",
+      "name": "Live Mode Enabled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        980,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MEDFLOW_API_BASE_URL }}/api/webhooks/staff-intervention",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-medflow-webhook-secret",
+              "value": "={{ $env.MEDFLOW_WEBHOOK_SECRET }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ interventionId: $('Validate Payload').item.json.body.interventionId, status: $('Validate Payload').item.json.body.status ?? 'HUMAN_TAKEOVER' }) }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          },
+          "retry": {
+            "maxTries": 3,
+            "waitBetweenTries": 2000
+          }
+        }
+      },
+      "id": "6e201ff5-16f1-494e-b6eb-16fb9e10ff1a",
+      "name": "Call MedFlow API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1220,
+        -120
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MEDFLOW_API_BASE_URL }}/api/webhooks/staff-intervention",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-medflow-webhook-secret",
+              "value": "={{ $env.MEDFLOW_WEBHOOK_SECRET }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ event: 'n8n_template_audit', workflow: '11-human-handoff-handler', source: 'n8n_template', executionId: $execution.id, statusCode: $json.statusCode ?? 200, payloadKeyCount: Object.keys($('Validate Payload').item.json.body || {}).length }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "f27ae96e-f330-4df3-904b-3e2b3f2064b6",
+      "name": "Audit Log (MedFlow)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1460,
+        -120
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, mode: 'live', workflow: 'MedFlow — Human Handoff', medflow: $('Call MedFlow API').item.json }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "e03ce600-64a8-4ed9-b9db-44d03b1aa911",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1700,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  ok: true,\n  mode: 'test',\n  dryRun: true,\n  workflow: 'MedFlow — Human Handoff',\n  message: 'TEST MODE — no carrier traffic. Set MEDFLOW_TEST_MODE=false and configure credential placeholders to go live.',\n  gate: $('Test Mode Gate').item.json,\n  validatedPayloadKeys: Object.keys($('Validate Payload').item.json.body || {}),\n}) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "8380e98b-f9d8-44dd-9c3f-eb38de14c3ee",
+      "name": "Respond Test Mode",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1220,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Errors\nCheck MEDFLOW_API_BASE_URL, MEDFLOW_WEBHOOK_SECRET, and required payload fields. Retries after 3s in live mode only.",
+        "height": 140,
+        "width": 300,
+        "color": 3
+      },
+      "id": "752a2aeb-7a79-4ee4-80d4-5544b7d85642",
+      "name": "Error Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        500,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 3,
+        "unit": "seconds"
+      },
+      "id": "a1d08365-32b5-4653-8355-799c66c4fdbd",
+      "name": "Wait Before Retry",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1220,
+        240
+      ],
+      "webhookId": "22a2875d-84eb-46de-a465-f74a65de529b"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MEDFLOW_API_BASE_URL }}/api/webhooks/staff-intervention",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-medflow-webhook-secret",
+              "value": "={{ $env.MEDFLOW_WEBHOOK_SECRET }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ interventionId: $('Validate Payload').item.json.body.interventionId, status: $('Validate Payload').item.json.body.status ?? 'HUMAN_TAKEOVER' }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "2b547da4-a69c-4b24-b5d8-32455805e9fb",
+      "name": "Retry MedFlow API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1460,
+        240
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, mode: $('Test Mode Gate').item.json.testMode ? 'test' : 'live', errors: $('Validate Payload').item.json.errors, gate: $('Test Mode Gate').item.json }) }}",
+        "options": {
+          "responseCode": 422
+        }
+      },
+      "id": "c8b2d570-199e-456d-8aef-9f849423f0f0",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        740,
+        200
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Validate Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Payload": {
+      "main": [
+        [
+          {
+            "node": "Validation OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validation OK?": {
+      "main": [
+        [
+          {
+            "node": "Test Mode Gate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Mode Gate": {
+      "main": [
+        [
+          {
+            "node": "Live Mode Enabled?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Live Mode Enabled?": {
+      "main": [
+        [
+          {
+            "node": "Call MedFlow API",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Test Mode",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call MedFlow API": {
+      "main": [
+        [
+          {
+            "node": "Audit Log (MedFlow)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait Before Retry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Log (MedFlow)": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Before Retry": {
+      "main": [
+        [
+          {
+            "node": "Retry MedFlow API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retry MedFlow API": {
+      "main": [
+        [
+          {
+            "node": "Respond Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "MedFlow AI"
+    },
+    {
+      "name": "Phase 7"
+    },
+    {
+      "name": "template"
+    },
+    {
+      "name": "test-mode-default"
+    }
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "medflow-ai-phase7-template"
+  }
+}

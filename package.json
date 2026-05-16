@@ -24,6 +24,7 @@
     "audit:integrations": "tsx scripts/integrations-audit.ts",
     "audit:architecture": "tsx scripts/architecture-audit.ts",
     "backfill:appointment-events": "tsx scripts/backfill-appointment-created-events.ts",
+    "generate:n8n-workflows": "tsx scripts/generate-n8n-workflows.ts",
     "postinstall": "prisma generate"
   },
   "prisma": {

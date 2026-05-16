@@ -1,0 +1,500 @@
+{
+  "name": "MedFlow — SMS Reply Handler (template)",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## TEMPLATE ONLY — no secrets in this file\n\n**Do not** commit real API keys, tokens, phone numbers, or patient data.\n\nConfigure in n8n **Settings → Variables** (placeholders):\n- `MEDFLOW_API_BASE_URL` — e.g. http://localhost:3000\n- `MEDFLOW_WEBHOOK_SECRET` — match MedFlow WEBHOOK_SECRET\n- `MEDFLOW_TEST_MODE` — default `true` (no live traffic)\n\nCarrier credential **names** (create in n8n Credentials, then set IDs):\n- `TWILIO_CREDENTIAL_ID`\n- `EMAIL_CREDENTIAL_ID`\n- `VAPI_CREDENTIAL_ID`\n- `OPENAI_CREDENTIAL_ID`\n- `GOOGLE_CREDENTIAL_ID`\n\nSet `MEDFLOW_TEST_MODE=false` only after all credentials are configured manually. Until then, workflows return dry-run responses and **do not** place calls, SMS, or email.",
+        "height": 420,
+        "width": 440,
+        "color": 4
+      },
+      "id": "d5f837ab-9ac7-4a15-a0bb-bcba00bdabb9",
+      "name": "Safety — Template Only",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -420,
+        -320
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## MedFlow — SMS Reply Handler\n\nSMS delivery / reply → MedFlow SmsLog (template).\n\n**Webhook path:** `medflow/sms-reply`\n**MedFlow env (outbound from MedFlow):** `N8N_WEBHOOK_SMS`\n**Callback:** `POST /api/webhooks/sms`\n\nAttach Twilio node using TWILIO_CREDENTIAL_ID when going live.",
+        "height": 280,
+        "width": 400,
+        "color": 5
+      },
+      "id": "79e24a29-6d0e-4ce4-8bde-eb4c52c5099e",
+      "name": "Workflow Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -400,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Carrier nodes (add manually)\n\nThis template does **not** send real traffic.\n\nWhen `MEDFLOW_TEST_MODE=false`, wire carrier nodes using n8n credential IDs:\n\n**This workflow:** TWILIO_CREDENTIAL_ID\n\nPlaceholders: TWILIO_CREDENTIAL_ID, EMAIL_CREDENTIAL_ID, VAPI_CREDENTIAL_ID, OPENAI_CREDENTIAL_ID, GOOGLE_CREDENTIAL_ID",
+        "height": 220,
+        "width": 360,
+        "color": 6
+      },
+      "id": "c28e413b-8586-4edf-b269-497c2169a645",
+      "name": "Carrier Placeholders",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        1480,
+        120
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "medflow/sms-reply",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "8494c3ce-2302-42be-ba4d-84a77e28be11",
+      "name": "Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "webhookId": "2f560d19-c1e0-4870-8cf7-3c5dce8c919b"
+    },
+    {
+      "parameters": {
+        "jsCode": "const required = [\"smsLogId\",\"MessageStatus\"];\nconst body = $input.first().json.body ?? $input.first().json;\nconst errors = [];\nfor (const field of required) {\n  const v = body[field] ?? body.payload?.[field];\n  if (v === undefined || v === null || v === '') errors.push('Missing: ' + field);\n}\nreturn [{\n  json: {\n    valid: errors.length === 0,\n    errors,\n    body,\n    workflow: body.workflow ?? body.workflowName ?? '',\n    validatedAt: new Date().toISOString(),\n  }\n}];"
+      },
+      "id": "3015637c-8f38-407d-8377-bb7ec1e1d48d",
+      "name": "Validate Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "5f9c22f0-e1fe-4f45-9efb-d568de134620",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "df0b81d8-ef66-4998-8a7f-bc477b84e1bd",
+      "name": "Validation OK?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        500,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $('Validate Payload').first().json.body ?? {};\nconst testMode = String($env.MEDFLOW_TEST_MODE ?? 'true').toLowerCase() !== 'false';\nconst medflowBase = ($env.MEDFLOW_API_BASE_URL ?? '').trim();\nconst medflowSecret = ($env.MEDFLOW_WEBHOOK_SECRET ?? '').trim();\nconst medflowReady = medflowBase.length > 0 && medflowSecret.length > 0;\nconst carrierIds = {\n  twilio: ($env.TWILIO_CREDENTIAL_ID ?? '').trim(),\n  email: ($env.EMAIL_CREDENTIAL_ID ?? '').trim(),\n  vapi: ($env.VAPI_CREDENTIAL_ID ?? '').trim(),\n  openai: ($env.OPENAI_CREDENTIAL_ID ?? '').trim(),\n  google: ($env.GOOGLE_CREDENTIAL_ID ?? '').trim(),\n};\nconst liveMode = !testMode && medflowReady;\nconst carriersConfigured = Object.values(carrierIds).some((v) => v.length > 0);\nreturn [{\n  json: {\n    testMode,\n    liveMode,\n    medflowReady,\n    carriersConfigured,\n    carrierIds,\n    note: testMode\n      ? 'TEST MODE — no outbound calls/SMS/email; MedFlow HTTP skipped unless liveMode'\n      : (liveMode ? 'LIVE MODE — configure carrier credentials before enabling sends' : 'Set MEDFLOW_API_BASE_URL and MEDFLOW_WEBHOOK_SECRET'),\n  }\n}];"
+      },
+      "id": "3c3d4e9e-1977-4e40-82b6-bfba5b083488",
+      "name": "Test Mode Gate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        740,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "cb760c3d-e4fd-472c-8948-35094e5332a5",
+              "leftValue": "={{ $json.liveMode }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "4ad9343c-af21-426d-8c0e-4ee9ca83de12",
+      "name": "Live Mode Enabled?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        980,
+        -40
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MEDFLOW_API_BASE_URL }}/api/webhooks/sms",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-medflow-webhook-secret",
+              "value": "={{ $env.MEDFLOW_WEBHOOK_SECRET }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ smsLogId: $('Validate Payload').item.json.body.smsLogId ?? $('Validate Payload').item.json.body.payload?.smsLogId, MessageSid: $('Validate Payload').item.json.body.MessageSid, MessageStatus: $('Validate Payload').item.json.body.MessageStatus ?? $('Validate Payload').item.json.body.status }) }}",
+        "options": {
+          "timeout": 30000,
+          "response": {
+            "response": {
+              "fullResponse": true
+            }
+          },
+          "retry": {
+            "maxTries": 3,
+            "waitBetweenTries": 2000
+          }
+        }
+      },
+      "id": "dd5d95bb-07e4-402e-82e1-ae7818104816",
+      "name": "Call MedFlow API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1220,
+        -120
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MEDFLOW_API_BASE_URL }}/api/webhooks/sms",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-medflow-webhook-secret",
+              "value": "={{ $env.MEDFLOW_WEBHOOK_SECRET }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ event: 'n8n_template_audit', workflow: '07-sms-reply-handler', source: 'n8n_template', executionId: $execution.id, statusCode: $json.statusCode ?? 200, payloadKeyCount: Object.keys($('Validate Payload').item.json.body || {}).length }) }}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "04b1a4c5-339d-4e3c-b00f-a206e3da8432",
+      "name": "Audit Log (MedFlow)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1460,
+        -120
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, mode: 'live', workflow: 'MedFlow — SMS Reply Handler', medflow: $('Call MedFlow API').item.json }) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "295059ba-0e89-4458-a4ba-318cf2d69ef5",
+      "name": "Respond Success",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1700,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  ok: true,\n  mode: 'test',\n  dryRun: true,\n  workflow: 'MedFlow — SMS Reply Handler',\n  message: 'TEST MODE — no carrier traffic. Set MEDFLOW_TEST_MODE=false and configure credential placeholders to go live.',\n  gate: $('Test Mode Gate').item.json,\n  validatedPayloadKeys: Object.keys($('Validate Payload').item.json.body || {}),\n}) }}",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "ca9bd6e9-73cf-47af-99cc-49a972e3ae5f",
+      "name": "Respond Test Mode",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1220,
+        80
+      ]
+    },
+    {
+      "parameters": {
+        "content": "## Errors\nCheck MEDFLOW_API_BASE_URL, MEDFLOW_WEBHOOK_SECRET, and required payload fields. Retries after 3s in live mode only.",
+        "height": 140,
+        "width": 300,
+        "color": 3
+      },
+      "id": "e5545499-0d27-4dfa-bb06-12638bff6389",
+      "name": "Error Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        500,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 3,
+        "unit": "seconds"
+      },
+      "id": "40f3aab8-2797-4e71-aafd-045e08101a05",
+      "name": "Wait Before Retry",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1220,
+        240
+      ],
+      "webhookId": "5e252e1e-e389-4e6a-88e8-93fb4c621f4c"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.MEDFLOW_API_BASE_URL }}/api/webhooks/sms",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "x-medflow-webhook-secret",
+              "value": "={{ $env.MEDFLOW_WEBHOOK_SECRET }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ smsLogId: $('Validate Payload').item.json.body.smsLogId ?? $('Validate Payload').item.json.body.payload?.smsLogId, MessageSid: $('Validate Payload').item.json.body.MessageSid, MessageStatus: $('Validate Payload').item.json.body.MessageStatus ?? $('Validate Payload').item.json.body.status }) }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "1fbe20d2-98db-4cf6-a07e-eee80584158e",
+      "name": "Retry MedFlow API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1460,
+        240
+      ],
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: false, mode: $('Test Mode Gate').item.json.testMode ? 'test' : 'live', errors: $('Validate Payload').item.json.errors, gate: $('Test Mode Gate').item.json }) }}",
+        "options": {
+          "responseCode": 422
+        }
+      },
+      "id": "0377914d-9bfb-4bca-a2ed-c3c26b763a54",
+      "name": "Respond Error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        740,
+        200
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "Validate Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validate Payload": {
+      "main": [
+        [
+          {
+            "node": "Validation OK?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Validation OK?": {
+      "main": [
+        [
+          {
+            "node": "Test Mode Gate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Mode Gate": {
+      "main": [
+        [
+          {
+            "node": "Live Mode Enabled?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Live Mode Enabled?": {
+      "main": [
+        [
+          {
+            "node": "Call MedFlow API",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Test Mode",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call MedFlow API": {
+      "main": [
+        [
+          {
+            "node": "Audit Log (MedFlow)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait Before Retry",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Audit Log (MedFlow)": {
+      "main": [
+        [
+          {
+            "node": "Respond Success",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Before Retry": {
+      "main": [
+        [
+          {
+            "node": "Retry MedFlow API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Retry MedFlow API": {
+      "main": [
+        [
+          {
+            "node": "Respond Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "staticData": null,
+  "tags": [
+    {
+      "name": "MedFlow AI"
+    },
+    {
+      "name": "Phase 7"
+    },
+    {
+      "name": "template"
+    },
+    {
+      "name": "test-mode-default"
+    }
+  ],
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "instanceId": "medflow-ai-phase7-template"
+  }
+}

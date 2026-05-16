@@ -1,6 +1,6 @@
 # MedFlow AI
 
-Production-oriented healthcare operations app spanning **Phases 1–6**: core foundation, communication logging, Master Orchestrator with AI agents, staff RBAC, physical front-desk flows (walk-ins, check-ins, waiting room), and the appointment reminder engine. Historical phase notes below; see **README-PHASE2.md** through **README-PHASE6.md** for detail.
+Production-oriented healthcare operations app spanning **Phases 1–7**: core foundation, communication logging, Master Orchestrator with AI agents, staff RBAC, physical front-desk flows (walk-ins, check-ins, waiting room), and the appointment reminder engine. Historical phase notes below; see **README-PHASE2.md** through **README-PHASE7.md** for detail.
 
 **Still future (Phase 7+):** scheduled cron runners at scale, insurance, and medical records APIs.
 
@@ -250,6 +250,14 @@ AI voice-first appointment reminder engine (48h / 24h / 2h / 30m), with SMS and 
 ## Phase 6
 
 Real external integrations (Twilio, Vapi/Retell, Gmail/SendGrid, Google Calendar, n8n, OpenAI) with **`MOCK_MODE=true` by default** — no live traffic until credentials and `MOCK_MODE=false`. See **[README-PHASE6.md](./README-PHASE6.md)** and **[docs/INTEGRATIONS.md](./docs/INTEGRATIONS.md)**.
+
+## Phase 7
+
+Importable **n8n workflow JSON** (12 handlers) for [n8n.smartdeskai.cloud](https://n8n.smartdeskai.cloud) — calls, reminders, SMS/email, walk-in, check-in, handoff, and AI coordination. See **[README-PHASE7.md](./README-PHASE7.md)** and **[n8n-workflows/SETUP-GUIDE.md](./n8n-workflows/SETUP-GUIDE.md)**.
+
+```bash
+npm run generate:n8n-workflows   # regenerate JSON from template
+```
 
 ```bash
 npm run audit:architecture

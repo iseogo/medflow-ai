@@ -2,6 +2,8 @@
 
 **Planning only.** This document describes target architecture; it does not enable live scheduling.
 
+> **Constraint:** Do not modify Phase 1–8 stable workflows, routes, or audits during planning. See [ROADMAP.md](./ROADMAP.md) and [COORDINATION.md](./COORDINATION.md).
+
 ## Goals
 
 1. Professional inbound voice intake with client identification or creation  

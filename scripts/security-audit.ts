@@ -36,6 +36,14 @@ function auditStatic() {
     "docs/HIPAA-CONSCIOUS.md",
     "docs/SECURITY.md",
     "README-PHASE8.md",
+    // Phase 9 planning (docs only — no runtime scheduling)
+    "README-PHASE9.md",
+    "docs/phase9/ROADMAP.md",
+    "docs/phase9/REQUIREMENTS.md",
+    "docs/phase9/COORDINATION.md",
+    "src/lib/scheduling/planning/provider-matching.service.ts",
+    "src/lib/scheduling/planning/availability-checking.service.ts",
+    "src/lib/scheduling/planning/intelligent-scheduling.service.ts",
   ];
   for (const f of required) {
     if (!existsSync(path.join(process.cwd(), f))) fail(`Missing ${f}`);

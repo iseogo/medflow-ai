@@ -1,32 +1,33 @@
-# Phase 9 — Service interfaces
+# Phase 9 — Service interfaces (planning only)
 
-Contracts for future implementation. TypeScript definitions live in:
+**No runtime implementations.** Phase 1–8 services are unchanged.
 
-`src/lib/scheduling/planning/interfaces.ts`
+## Primary planning interfaces (required)
 
-**No runtime implementations in Phase 9.**
+| Planning file | Future implementation | Responsibility |
+|---------------|----------------------|----------------|
+| [`provider-matching.service.ts`](../../src/lib/scheduling/planning/provider-matching.service.ts) | `src/services/scheduling/provider-matching.service.ts` | Rank providers by skills, specialty, urgency, gender pref, load |
+| [`availability-checking.service.ts`](../../src/lib/scheduling/planning/availability-checking.service.ts) | `src/services/scheduling/availability-checking.service.ts` | Clinic hours, buffers, conflicts, capacity |
+| [`intelligent-scheduling.service.ts`](../../src/lib/scheduling/planning/intelligent-scheduling.service.ts) | `src/services/scheduling/intelligent-scheduling.service.ts` | Inbound session orchestration + orchestrator proposals |
 
-## Module map (planned)
+Shared types: [`interfaces.ts`](../../src/lib/scheduling/planning/interfaces.ts)
 
-| Service | File (future) | Responsibility |
-|---------|---------------|----------------|
-| `VoiceSessionService` | `src/services/scheduling/voice-session.service.ts` | Call/session lifecycle |
-| `IntakeCollectorService` | `src/services/scheduling/intake-collector.service.ts` | Field collection & validation |
-| `SafetyTriageService` | `src/services/scheduling/safety-triage.service.ts` | Emergency + urgency gates |
-| `ProviderMatchingService` | `src/services/scheduling/provider-matching.service.ts` | Rank providers |
-| `AvailabilityEngineService` | `src/services/scheduling/availability-engine.service.ts` | Valid slot computation |
-| `SlotRecommendationService` | `src/services/scheduling/slot-recommendation.service.ts` | Present ranked slots |
-| `BookingExecutionService` | `src/services/scheduling/booking-execution.service.ts` | Post-approval persistence |
-| `SchedulingOrchestratorBridge` | `src/services/scheduling/orchestrator-bridge.service.ts` | Proposal builders |
+## Supporting interfaces (future)
+
+| Interface | File | Responsibility |
+|-----------|------|----------------|
+| `IVoiceSessionService` | `interfaces.ts` | Call/session lifecycle |
+| `IIntakeCollectorService` | `interfaces.ts` | Field collection |
+| `ISafetyTriageService` | `interfaces.ts` | Emergency routing (not clinical triage) |
+| `ISchedulingOrchestratorBridge` | `interfaces.ts` | Master Orchestrator proposals |
 
 ## Dependency direction
 
 ```
-voice-session → intake → safety-triage → provider-matching → availability → slot-recommendation
-                                                              ↓
-                                                    orchestrator-bridge
-                                                              ↓
-                                                    booking-execution (on approve)
+intelligent-scheduling
+  ├── provider-matching
+  ├── availability-checking
+  └── orchestrator bridge (future) → master-orchestrator.service
 ```
 
 ## Orchestrator bridge
@@ -34,26 +35,27 @@ voice-session → intake → safety-triage → provider-matching → availabilit
 All mutations submit to `masterOrchestratorService` with:
 
 - `agentType: VOICE_CALL_AI | INTAKE_AI | APPOINTMENT_AI`  
-- `actionType` from planning enum  
+- `actionType` from `SchedulingProposalActionType` in `interfaces.ts`  
 - `proposedPayload` matching interface types  
 - `clientId`, optional `appointmentId`, `callLogId`  
 
-## External integrations
+## External integrations (unchanged contracts)
 
 | Integration | Phase | Role |
 |-------------|-------|------|
 | Twilio voice webhook | 6 | Ingress |
-| n8n | 7 | Optional STT/TTS orchestration |
-| SendGrid / SMS | 6 | Confirmations (proposed) |
+| n8n | 7 | Optional STT/TTS |
+| SendGrid / SMS | 6 | Confirmations (proposed, mock-first) |
 | Reminder engine | 5 | Post-book schedules |
 
-## Testing strategy (future)
+## Testing strategy (future build)
 
-- Unit: availability overlap, capacity, scoring  
+- Unit: matching scores, availability overlap, capacity  
 - Integration: mock orchestrator approvals  
-- Audit: `npm run audit:scheduling` (to be added with implementation)  
+- `npm run audit:scheduling` (to be added with implementation)  
 
 ## See also
 
-- [interfaces.ts](../../src/lib/scheduling/planning/interfaces.ts)  
-- [ARCHITECTURE.md](./ARCHITECTURE.md)  
+- [COORDINATION.md](./COORDINATION.md)  
+- [REQUIREMENTS.md](./REQUIREMENTS.md)  
+- [ROADMAP.md](./ROADMAP.md)  

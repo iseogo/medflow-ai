@@ -276,7 +276,13 @@ npm run audit:staff-rbac
 
 ## Phase 9 (planning only)
 
-Inbound **voice AI scheduling**: intake → safety triage → provider matching → availability → booking via Master Orchestrator. **Not implemented** — architecture, data model plan, workflows, and service interfaces only. See **[README-PHASE9.md](./README-PHASE9.md)** and **[docs/phase9/](./docs/phase9/)**.
+**Intelligent inbound call scheduling & nurse/provider matching** — documentation and planned interfaces only (no live scheduling or medical triage). Preserves Phase 1–8 orchestrator, audit, reminders, webhooks, and `MOCK_MODE`.
+
+See **[README-PHASE9.md](./README-PHASE9.md)**, **[docs/phase9/ROADMAP.md](./docs/phase9/ROADMAP.md)**, **[docs/phase9/REQUIREMENTS.md](./docs/phase9/REQUIREMENTS.md)**.
+
+```bash
+npm run audit:coordination && npm run audit:architecture && npm run audit:security && npm run audit:production
+```
 
 ## Next phases
 

@@ -116,7 +116,7 @@ Catalog of visit reasons the clinic schedules (not ICD codes).
 
 ### `ProviderProfile`
 
-Links `User` (clinical staff) to scheduling capabilities.
+Links `User` (clinical staff) to scheduling capabilities. **Planning name — not migrated.**
 
 | Field | Type |
 |-------|------|
@@ -126,27 +126,57 @@ Links `User` (clinical staff) to scheduling capabilities.
 | gender | String? |
 | roleTitle | String |
 | specialty | String |
-| skills | String[] |
-| serviceTypeIds | relation M2M |
-| clinicLocationId | String |
-| maxDailyAppointments | Int |
+| clinicLocationId | String → ClinicLocation |
 | status | ProviderProfileStatus |
 | metadata | Json? |
 
-### `ProviderAvailabilityBlock`
+Skills and services are normalized via `ProviderSkill` and M2M to `ServiceType` (below).
 
-Recurring or one-off availability (not yet booked).
+### `ProviderSkill`
+
+Tags a provider with schedulable capabilities (replaces ad-hoc string arrays).
+
+| Field | Type |
+|-------|------|
+| id | cuid |
+| providerProfileId | String → ProviderProfile |
+| skillCode | String |
+| skillLabel | String |
+| proficiency | String? (`PRIMARY`, `SECONDARY`) |
+| isActive | Boolean @default(true) |
+
+### `ProviderAvailability`
+
+Calendar windows when a provider may accept appointments (recurring or one-off).
 
 | Field | Type |
 |-------|------|
 | id | cuid |
 | providerProfileId | String |
-| dayOfWeek | Int? (0–6) |
-| startTime | String (HH:mm local) |
+| clinicLocationId | String |
+| dayOfWeek | Int? (0–6, null if `specificDate` set) |
+| startTime | String (HH:mm clinic local) |
 | endTime | String |
 | specificDate | DateTime? |
-| isBlocked | Boolean (PTO / meeting) |
-| clinicLocationId | String |
+| isBlocked | Boolean (PTO / meeting — subtracts from availability) |
+| effectiveFrom | DateTime? |
+| effectiveTo | DateTime? |
+
+### `ProviderCapacityRule`
+
+Daily load limits and buffers per provider (and optional per service type).
+
+| Field | Type |
+|-------|------|
+| id | cuid |
+| providerProfileId | String |
+| maxDailyAppointments | Int |
+| bufferBeforeMinutes | Int @default(0) |
+| bufferAfterMinutes | Int @default(0) |
+| serviceTypeId | String? (null = all services) |
+| isActive | Boolean @default(true) |
+
+M2M: `ProviderProfile` ↔ `ServiceType` for “services they can handle.”
 
 ### `ClinicHours`
 
@@ -179,6 +209,27 @@ Voice intake state container.
 | staffInterventionId | String? |
 | expiresAt | DateTime |
 
+### `SchedulingRecommendation`
+
+Persisted slot offers for audit and session replay (not a live booking).
+
+| Field | Type |
+|-------|------|
+| id | cuid |
+| schedulingCallSessionId | String |
+| clientId | String |
+| providerProfileId | String |
+| serviceTypeId | String |
+| slotStart | DateTime |
+| slotEnd | DateTime |
+| matchScore | Float |
+| rank | Int |
+| valid | Boolean |
+| invalidatedReason | String? |
+| offeredAt | DateTime |
+| selectedAt | DateTime? |
+| metadata | Json? (sanitized — no raw symptoms) |
+
 ### `ProviderMatchDecision` (audit artifact)
 
 | Field | Type |
@@ -191,15 +242,30 @@ Voice intake state container.
 | reasonCodes | String[] |
 | createdAt | DateTime |
 
+## Planned entity checklist
+
+| Model | Purpose |
+|-------|---------|
+| `ProviderProfile` | Identity, role, specialty, location, status |
+| `ProviderSkill` | Skills tags for matching |
+| `ProviderAvailability` | Calendar windows |
+| `ProviderCapacityRule` | Max daily load + buffers |
+| `SchedulingRecommendation` | Offered slots audit trail |
+| `SchedulingCallSession` | Voice session state |
+| `ServiceType` / `ClinicLocation` | Catalog + hours |
+
 ## Entity relationship (planned)
 
 ```mermaid
 erDiagram
   User ||--o| ProviderProfile : has
+  ProviderProfile ||--o{ ProviderSkill : skills
+  ProviderProfile ||--o{ ProviderAvailability : calendar
+  ProviderProfile ||--o{ ProviderCapacityRule : capacity
   ProviderProfile }o--o{ ServiceType : handles
-  ProviderProfile ||--o{ ProviderAvailabilityBlock : calendar
   ClinicLocation ||--o{ ProviderProfile : hosts
   ClinicLocation ||--o{ ClinicHours : hours
+  SchedulingCallSession ||--o{ SchedulingRecommendation : offers
   Client ||--o{ SchedulingCallSession : calls
   SchedulingCallSession ||--o| CallLog : links
   SchedulingCallSession ||--o| StaffIntervention : may_escalate

@@ -199,6 +199,8 @@ enum AuditAction {
   STATUS_CHANGE
   STAFF_OVERRIDE
   VIEW
+  EXPORT
+  FILE_ACCESS
 }
 
 model Role {

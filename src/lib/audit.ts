@@ -1,4 +1,5 @@
 import { AuditAction, Prisma, RoleType } from "@prisma/client";
+import { sanitizeMetadataForAudit } from "@/lib/security/phi-safe-log";
 import { prisma } from "./prisma";
 
 export type AuditLogInput = {
@@ -64,7 +65,10 @@ export async function createAuditLog(input: AuditLogInput) {
       actorName: actor.actorName,
       actorRole: actor.actorRole,
       clientId: input.clientId,
-      metadata: input.metadata ?? undefined,
+      metadata:
+        sanitizeMetadataForAudit(
+          input.metadata as Record<string, unknown> | undefined
+        ) ?? undefined,
       ipAddress: input.ipAddress,
       userAgent: input.userAgent,
     },

@@ -4,6 +4,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { createAuditLog } from "./audit";
 import { prisma } from "./prisma";
 import { verifyPassword } from "./password";
+import { sessionMaxAgeSeconds, sessionUpdateAgeSeconds } from "./security/session-policy";
 
 const ACTIVE: UserStatus = "ACTIVE";
 
@@ -63,7 +64,11 @@ export const authOptions: NextAuthOptions = {
       },
     }),
   ],
-  session: { strategy: "jwt", maxAge: 8 * 60 * 60 },
+  session: {
+    strategy: "jwt",
+    maxAge: sessionMaxAgeSeconds(),
+    updateAge: sessionUpdateAgeSeconds(),
+  },
   pages: { signIn: "/login" },
   callbacks: {
     async jwt({ token, user, trigger }) {

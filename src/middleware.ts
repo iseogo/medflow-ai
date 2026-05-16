@@ -1,40 +1,55 @@
 import { withAuth } from "next-auth/middleware";
-import { NextResponse } from "next/server";
-import { canAccessDashboardRoute } from "@/lib/route-permissions";
+import { getToken } from "next-auth/jwt";
+import { NextRequest, NextResponse } from "next/server";
+import { RoleType } from "@prisma/client";
+import { isPublicApiPath } from "@/lib/security/api-rbac";
+import { enqueueApiAccessAudit } from "@/middleware/audit";
+import { applyApiRbacMiddleware, applyDashboardRbacMiddleware } from "@/middleware/rbac";
+import { applySecurityMiddleware } from "@/middleware/security";
+
+type MiddlewareToken = {
+  id?: string;
+  role?: RoleType;
+  forcePasswordReset?: boolean;
+  invalid?: boolean;
+};
 
 export default withAuth(
-  function middleware(req) {
-    const token = req.nextauth.token;
-    const pathname = req.nextUrl.pathname;
-    const role = token?.role;
-
-    if (!role) {
-      return NextResponse.redirect(new URL("/login", req.url));
+  async function middleware(req: NextRequest) {
+    const apiDenied = await applyApiRbacMiddleware(req);
+    if (apiDenied) {
+      return applySecurityMiddleware(req, apiDenied);
     }
 
-    if (pathname !== "/dashboard/access-denied" && !canAccessDashboardRoute(role, pathname)) {
-      return NextResponse.redirect(new URL("/dashboard/access-denied", req.url));
+    if (req.nextUrl.pathname.startsWith("/api/")) {
+      await enqueueApiAccessAudit(req);
+      return applySecurityMiddleware(req, NextResponse.next());
     }
 
-    if (
-      token.forcePasswordReset &&
-      !pathname.startsWith("/dashboard/settings") &&
-      pathname !== "/dashboard/access-denied"
-    ) {
-      const url = new URL("/dashboard/settings", req.url);
-      url.searchParams.set("changePassword", "1");
-      return NextResponse.redirect(url);
+    const token = (await getToken({
+      req,
+      secret: process.env.NEXTAUTH_SECRET,
+    })) as MiddlewareToken | null;
+    const dashDenied = applyDashboardRbacMiddleware(req, token ?? {});
+    if (dashDenied) {
+      return applySecurityMiddleware(req, dashDenied);
     }
 
-    return NextResponse.next();
+    return applySecurityMiddleware(req, NextResponse.next());
   },
   {
     callbacks: {
-      authorized: ({ token }) => !!token?.id,
+      authorized: ({ token, req }) => {
+        const pathname = req.nextUrl.pathname;
+        if (pathname.startsWith("/api/") && isPublicApiPath(pathname)) {
+          return true;
+        }
+        return Boolean(token?.id && !(token as { invalid?: boolean }).invalid);
+      },
     },
   }
 );
 
 export const config = {
-  matcher: ["/dashboard/:path*"],
+  matcher: ["/dashboard/:path*", "/api/:path*"],
 };

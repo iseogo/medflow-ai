@@ -98,6 +98,7 @@ Header: `x-medflow-webhook-secret: <WEBHOOK_SECRET>`
 ## Audits
 
 ```bash
+npm run audit:coordination
 npm run audit:integrations
 npm run audit:architecture
 npm run audit:production

@@ -11,6 +11,10 @@ import { getAgentDefinition, isActionAllowed } from "@/lib/agents/definitions";
 import { createAuditLog } from "@/lib/audit";
 import { detectEmergencyLanguage } from "@/lib/emergency-detect";
 import {
+  emergencyEscalationGuardrails,
+  validateAgentProposalContent,
+} from "@/lib/security/ai-safety";
+import {
   AiAutomationBlockedError,
   assertAiAutomationAllowed,
 } from "@/lib/ai-automation-guard";
@@ -115,6 +119,28 @@ export const masterOrchestratorService = {
         throw new MasterOrchestratorError(e.message, e.code);
       }
       throw e;
+    }
+
+    const safety = validateAgentProposalContent({
+      description: input.description,
+      contentForEmergencyScan: input.contentForEmergencyScan,
+      proposedPayload: input.proposedPayload,
+    });
+    if (!safety.ok) {
+      if (safety.escalate) {
+        return this.handleEmergency({
+          clientId: input.clientId,
+          appointmentId: input.appointmentId,
+          agentType: input.agentType,
+          actionType: input.actionType,
+          purpose: input.purpose,
+          channel: input.channel,
+          description: safety.message,
+          matchedTerms: ["ai_safety_guardrail"],
+          proposedPayload: input.proposedPayload,
+        });
+      }
+      throw new MasterOrchestratorError(safety.message, safety.code);
     }
 
     const emergency = input.contentForEmergencyScan
@@ -586,7 +612,8 @@ export const masterOrchestratorService = {
       metadata: {
         proposalId: proposal.id,
         staffTaskId: urgentTask.id,
-        matchedTerms: input.matchedTerms,
+        matchedTermCount: input.matchedTerms.length,
+        ...emergencyEscalationGuardrails(input.matchedTerms),
       },
     });
 
@@ -596,9 +623,10 @@ export const masterOrchestratorService = {
       entityId: proposal.id,
       clientId: input.clientId,
       metadata: {
-        matchedTerms: input.matchedTerms,
+        matchedTermCount: input.matchedTerms.length,
         automationHalted: true,
         staffTaskId: urgentTask.id,
+        ...emergencyEscalationGuardrails(input.matchedTerms),
       },
     });
 

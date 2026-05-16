@@ -1,8 +1,8 @@
 # MedFlow AI
 
-Production-oriented healthcare operations app spanning **Phases 1–7**: core foundation, communication logging, Master Orchestrator with AI agents, staff RBAC, physical front-desk flows (walk-ins, check-ins, waiting room), and the appointment reminder engine. Historical phase notes below; see **README-PHASE2.md** through **README-PHASE7.md** for detail.
+Production-oriented healthcare operations app spanning **Phases 1–8** (implemented) with **Phase 9** architecture planning for inbound AI scheduling. Historical phase notes below; see **README-PHASE2.md** through **README-PHASE9.md** for detail.
 
-**Still future (Phase 7+):** scheduled cron runners at scale, insurance, and medical records APIs.
+**Still future:** live scheduling engine (Phase 9 build), production cron at scale, insurance, and medical records APIs.
 
 ## Infrastructure
 
@@ -218,6 +218,8 @@ Session required on all routes except `/api/health` and `/api/auth/*`. Permissio
 | `npm run audit:production` | Production readiness — API RBAC, orchestration, relational integrity, build |
 | `npm run audit:integrations` | Phase 6 mock-mode and provider configuration audit |
 | `npm run audit:architecture` | Deep cross-phase architecture audit (coherence, coordination, compatibility, scalability, security) |
+| `npm run audit:coordination` | Multi-session / multi-agent coordination audit (chain, AI orchestrator, outcomes) |
+| `npm run audit:security` | Phase 8 HIPAA-conscious security controls audit |
 | `npm run audit:staff-rbac` | Staff accounts and RBAC matrix audit |
 
 ## Security notes
@@ -253,13 +255,18 @@ Real external integrations (Twilio, Vapi/Retell, Gmail/SendGrid, Google Calendar
 
 ## Phase 7
 
-Importable **n8n workflow JSON** (12 handlers) for [n8n.smartdeskai.cloud](https://n8n.smartdeskai.cloud) — calls, reminders, SMS/email, walk-in, check-in, handoff, and AI coordination. See **[README-PHASE7.md](./README-PHASE7.md)** and **[n8n-workflows/SETUP-GUIDE.md](./n8n-workflows/SETUP-GUIDE.md)**.
+Importable **n8n workflow templates** (12 handlers) for your n8n instance — calls, reminders, SMS/email, walk-in, check-in, handoff, and AI coordination. See **[README-PHASE7.md](./README-PHASE7.md)** and **[n8n-workflows/SETUP-GUIDE.md](./n8n-workflows/SETUP-GUIDE.md)**.
 
 ```bash
 npm run generate:n8n-workflows   # regenerate JSON from template
 ```
 
+## Phase 8
+
+HIPAA-conscious **security hardening** (not legal compliance): PHI-safe logging, RBAC/audit middleware, session timeout, rate limits, secure headers, data access checks, AI safety rules. See **[README-PHASE8.md](./README-PHASE8.md)**, **[docs/SECURITY.md](./docs/SECURITY.md)**, **[docs/HIPAA-CONSCIOUS.md](./docs/HIPAA-CONSCIOUS.md)**.
+
 ```bash
+npm run audit:coordination
 npm run audit:architecture
 npm run audit:production
 npm run audit:system-coherence
@@ -267,6 +274,10 @@ npm run audit:integrations
 npm run audit:staff-rbac
 ```
 
+## Phase 9 (planning only)
+
+Inbound **voice AI scheduling**: intake → safety triage → provider matching → availability → booking via Master Orchestrator. **Not implemented** — architecture, data model plan, workflows, and service interfaces only. See **[README-PHASE9.md](./README-PHASE9.md)** and **[docs/phase9/](./docs/phase9/)**.
+
 ## Next phases
 
-Phase 7+ — production cron scheduling, insurance APIs, and medical records fulfillment.
+Phase 9 implementation, production cron scheduling, insurance APIs, and medical records fulfillment.

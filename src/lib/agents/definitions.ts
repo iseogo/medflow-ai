@@ -1,4 +1,5 @@
 import { AgentType } from "@prisma/client";
+import { getAiSafetySystemPromptAddition } from "@/lib/security/ai-safety";
 import { AgentDefinition, ProposedActionKey } from "./types";
 
 const GLOBAL_FORBIDDEN: ProposedActionKey[] = [
@@ -36,7 +37,7 @@ function def(
   return {
     type,
     displayName,
-    systemPrompt: `You are the ${displayName} for MedFlow AI. ${role} You must NEVER act independently. Submit all work as proposals to the Master Orchestrator. Staff actions always override yours.`,
+    systemPrompt: `You are the ${displayName} for MedFlow AI. ${role} You must NEVER act independently. Submit all work as proposals to the Master Orchestrator. Staff actions always override yours. ${getAiSafetySystemPromptAddition()}`,
     allowedActions: allowed,
     forbiddenActions: Array.from(
       new Set([...GLOBAL_FORBIDDEN, ...forbidden])

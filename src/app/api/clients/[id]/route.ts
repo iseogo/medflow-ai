@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createAuditLog } from "@/lib/audit";
 import { requirePermission } from "@/lib/api-auth";
+import {
+  assertClientDataAccess,
+  dataAccessErrorResponse,
+} from "@/lib/security/data-access";
 import { prisma } from "@/lib/prisma";
 import { addTimelineEvent } from "@/lib/timeline";
 
@@ -18,9 +22,22 @@ const updateSchema = z.object({
 
 type RouteContext = { params: { id: string } };
 
-export async function GET(_request: NextRequest, { params }: RouteContext) {
-  const { error } = await requirePermission("clients:read");
+export async function GET(request: NextRequest, { params }: RouteContext) {
+  const { error, user, meta } = await requirePermission("clients:read", request);
   if (error) return error;
+
+  try {
+    await assertClientDataAccess({
+      user: user!,
+      clientId: params.id,
+      action: "read",
+      meta,
+    });
+  } catch (e) {
+    const denied = dataAccessErrorResponse(e);
+    if (denied) return denied;
+    throw e;
+  }
 
   const client = await prisma.client.findUnique({
     where: { id: params.id },

@@ -4,7 +4,10 @@ import { WaitingRoomState } from "@prisma/client";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { WAITING_ROOM_STATE_LABELS } from "@/lib/constants";
-import { TERMINAL_WAITING_ROOM_STATES } from "@/lib/waiting-room";
+import {
+  TERMINAL_WAITING_ROOM_STATES,
+  WAITING_ROOM_ALLOWED_TRANSITIONS,
+} from "@/lib/waiting-room";
 
 type QueueEntry = {
   id: string;
@@ -22,17 +25,7 @@ type QueueEntry = {
 };
 
 function actionsForState(state: WaitingRoomState): WaitingRoomState[] {
-  switch (state) {
-    case "CHECKED_IN":
-      return ["WAITING", "WALK_OUT", "NO_SHOW"];
-    case "WAITING":
-    case "CALLED":
-      return ["WITH_PROVIDER", "WALK_OUT", "NO_SHOW"];
-    case "WITH_PROVIDER":
-      return ["COMPLETED", "WALK_OUT"];
-    default:
-      return [];
-  }
+  return WAITING_ROOM_ALLOWED_TRANSITIONS[state] ?? [];
 }
 
 function isTerminalState(state: WaitingRoomState) {
@@ -84,9 +77,11 @@ export function WaitingRoomBoard({ initialQueue }: { initialQueue: QueueEntry[] 
   return (
     <div className="space-y-4">
       {queue.length === 0 ? (
-        <p className="medflow-card p-8 text-center text-slate-600">
-          No clients currently in the waiting room.
-        </p>
+        <div className="medflow-card overflow-hidden">
+          <p className="px-4 py-12 text-center text-sm text-slate-500">
+            No clients currently in the waiting room.
+          </p>
+        </div>
       ) : (
         queue.map((entry) => {
           const actions = actionsForState(entry.state);
@@ -120,8 +115,8 @@ export function WaitingRoomBoard({ initialQueue }: { initialQueue: QueueEntry[] 
                   <button
                     key={action}
                     type="button"
-                    disabled={loading === entry.id || entry.state === action}
-                    className="medflow-btn-secondary text-xs"
+                    disabled={loading !== null || entry.state === action}
+                    className="medflow-btn-secondary text-xs disabled:opacity-50"
                     onClick={() => updateState(entry.id, action)}
                   >
                     {WAITING_ROOM_STATE_LABELS[action]}

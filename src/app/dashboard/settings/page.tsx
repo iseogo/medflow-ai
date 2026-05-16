@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { Header } from "@/components/dashboard/Header";
 import { PageHeader } from "@/components/dashboard/PageHeader";
 import { ChangePasswordForm } from "@/components/dashboard/ChangePasswordForm";
+import { IntegrationsPanel } from "@/components/dashboard/IntegrationsPanel";
 import { APP_TIMEZONE, APP_URL, N8N_URL, ROLE_LABELS } from "@/lib/constants";
 import { authOptions } from "@/lib/auth";
 
@@ -41,6 +42,7 @@ export default async function SettingsPage() {
           <Suspense fallback={<p className="text-sm text-slate-500">Loading…</p>}>
             <ChangePasswordForm />
           </Suspense>
+          <IntegrationsPanel />
           <section className="medflow-card p-6">
             <h3 className="font-semibold text-slate-900">Platform</h3>
             <dl className="mt-4 space-y-3 text-sm">

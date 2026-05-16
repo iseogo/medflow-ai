@@ -1,12 +1,12 @@
-import { N8N_URL } from "@/lib/constants";
-
-/**
- * n8n stub — logs workflow intent without calling n8n.smartdeskai.cloud.
- */
+import { isN8nLive } from "@/lib/integrations/env";
+import { resolveN8nWebhookUrl } from "@/lib/integrations/n8n-routing";
+import { integrationFetch } from "@/lib/integrations/http";
+import { safeLogContext } from "@/lib/integrations/safe-log";
 
 export type StubWorkflowResult = {
   workflowRunId: string;
   status: "QUEUED" | "COMPLETED" | "FAILED";
+  mode: "live" | "mock";
 };
 
 const STUB_DELAY_MS = 30;
@@ -15,20 +15,90 @@ function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function webhookSecretHeader(): Record<string, string> {
+  const secret =
+    process.env.WEBHOOK_SECRET?.trim() ??
+    process.env.MEDFLOW_WEBHOOK_SECRET?.trim();
+  if (!secret) return {};
+  return { "x-medflow-webhook-secret": secret };
+}
+
+async function stubTrigger(input: {
+  workflowName: string;
+  payload: Record<string, unknown>;
+}): Promise<StubWorkflowResult> {
+  await delay(STUB_DELAY_MS);
+  const workflowRunId = `n8n_mock_${Date.now()}`;
+  safeLogContext("n8n_mock", {
+    workflow: input.workflowName,
+    payloadKeyCount: Object.keys(input.payload).length,
+  });
+  return { workflowRunId, status: "COMPLETED", mode: "mock" };
+}
+
+async function liveTrigger(input: {
+  workflowName: string;
+  payload: Record<string, unknown>;
+}): Promise<StubWorkflowResult> {
+  const webhookUrl = resolveN8nWebhookUrl(input.workflowName);
+  if (!webhookUrl) {
+    return stubTrigger(input);
+  }
+
+  const res = await integrationFetch(webhookUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      ...webhookSecretHeader(),
+    },
+    body: JSON.stringify({
+      workflow: input.workflowName,
+      payload: input.payload,
+      timestamp: new Date().toISOString(),
+    }),
+  });
+
+  if (!res.ok) {
+    safeLogContext("n8n_live_failed", {
+      workflow: input.workflowName,
+      status: res.status,
+    });
+    return {
+      workflowRunId: `n8n_failed_${Date.now()}`,
+      status: "FAILED",
+      mode: "live",
+    };
+  }
+
+  let workflowRunId = `n8n_${Date.now()}`;
+  try {
+    const text = await res.text();
+    const json = JSON.parse(text) as { executionId?: string; id?: string };
+    workflowRunId = json.executionId ?? json.id ?? workflowRunId;
+  } catch {
+    /* non-JSON response is ok */
+  }
+
+  return { workflowRunId, status: "COMPLETED", mode: "live" };
+}
+
 export const n8nService = {
+  mode(): "live" | "mock" {
+    return isN8nLive() ? "live" : "mock";
+  },
+
   async triggerWorkflow(input: {
     workflowName: string;
     payload: Record<string, unknown>;
   }): Promise<StubWorkflowResult> {
-    await delay(STUB_DELAY_MS);
-    const workflowRunId = `n8n_stub_${Date.now()}`;
-    console.info("[n8n_stub] Workflow", {
-      url: N8N_URL,
-      workflow: input.workflowName,
-      payloadKeys: Object.keys(input.payload),
-      workflowRunId,
-    });
-    return { workflowRunId, status: "COMPLETED" };
+    if (!isN8nLive()) {
+      return stubTrigger(input);
+    }
+    const hasWebhook = Boolean(resolveN8nWebhookUrl(input.workflowName));
+    if (!hasWebhook) {
+      return stubTrigger(input);
+    }
+    return liveTrigger(input);
   },
 };
 

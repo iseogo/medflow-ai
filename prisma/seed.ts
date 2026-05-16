@@ -232,6 +232,15 @@ async function main() {
       actorUserId: admin.id,
     },
     {
+      id: "seed-timeline-appt2-created",
+      clientId: client2.id,
+      eventType: "APPOINTMENT_CREATED" as const,
+      title: "Appointment scheduled",
+      description: "Follow-up consultation",
+      metadata: { appointmentId: "seed-appt-10002" },
+      actorUserId: admin.id,
+    },
+    {
       id: "seed-timeline-client2-created",
       clientId: client2.id,
       eventType: "CLIENT_CREATED" as const,
@@ -292,6 +301,34 @@ async function main() {
     },
   });
 
+  await prisma.clientTimelineEvent.upsert({
+    where: { id: "seed-timeline-task-insurance" },
+    update: {},
+    create: {
+      id: "seed-timeline-task-insurance",
+      clientId: client1.id,
+      eventType: "STAFF_TASK_CREATED",
+      title: "Verify insurance for Maria Garcia",
+      description: "Confirm coverage before tomorrow's visit",
+      metadata: { taskId: "seed-task-insurance" },
+      actorUserId: admin.id,
+    },
+  });
+
+  await prisma.auditLog.upsert({
+    where: { id: "seed-audit-task-insurance" },
+    update: {},
+    create: {
+      id: "seed-audit-task-insurance",
+      action: "CREATE",
+      entityType: "StaffTask",
+      entityId: "seed-task-insurance",
+      userId: admin.id,
+      clientId: client1.id,
+      metadata: { source: "seed" },
+    },
+  });
+
   const auditSeeds = [
     {
       id: "seed-audit-client1",
@@ -309,6 +346,15 @@ async function main() {
       entityId: appt1.id,
       userId: admin.id,
       clientId: client1.id,
+      metadata: { source: "seed" },
+    },
+    {
+      id: "seed-audit-appt2",
+      action: "CREATE" as const,
+      entityType: "Appointment",
+      entityId: "seed-appt-10002",
+      userId: admin.id,
+      clientId: client2.id,
       metadata: { source: "seed" },
     },
   ];
@@ -696,6 +742,46 @@ async function main() {
 
   const phase4Timeline = [
     {
+      id: "seed-timeline-client3-created",
+      clientId: client3.id,
+      eventType: "CLIENT_CREATED" as const,
+      title: "Client profile created",
+      actorUserId: admin.id,
+    },
+    {
+      id: "seed-timeline-appt-today-maria",
+      clientId: client1.id,
+      eventType: "APPOINTMENT_CREATED" as const,
+      title: "Appointment scheduled — same-day visit (demo)",
+      metadata: { appointmentId: apptTodayMaria.id },
+      actorUserId: admin.id,
+    },
+    {
+      id: "seed-timeline-appt-today-james",
+      clientId: client2.id,
+      eventType: "APPOINTMENT_CREATED" as const,
+      title: "Appointment scheduled — follow-up (demo)",
+      metadata: { appointmentId: apptTodayJames.id },
+      actorUserId: admin.id,
+    },
+    {
+      id: "seed-timeline-appt-today-sofia",
+      clientId: client3.id,
+      eventType: "APPOINTMENT_CREATED" as const,
+      title: "Appointment scheduled — urgent care (demo)",
+      metadata: { appointmentId: apptTodaySofia.id },
+      actorUserId: admin.id,
+    },
+    {
+      id: "seed-timeline-intervention-walkin",
+      clientId: client2.id,
+      eventType: "STAFF_INTERVENTION_CREATED" as const,
+      title: "Walk-in patient check-in",
+      description: "Patient arrived without appointment",
+      metadata: { interventionId: "seed-intervention-walkin" },
+      actorUserId: admin.id,
+    },
+    {
       id: "seed-timeline-walkin-james",
       clientId: client2.id,
       eventType: "WALK_IN_REGISTERED" as const,
@@ -711,11 +797,27 @@ async function main() {
       actorUserId: checkedInById,
     },
     {
+      id: "seed-timeline-checkin-james",
+      clientId: client2.id,
+      eventType: "PHYSICAL_CHECK_IN" as const,
+      title: "Physical check-in — James Wilson",
+      metadata: { checkInId: checkInJames.id },
+      actorUserId: checkedInById,
+    },
+    {
       id: "seed-timeline-wr-maria",
       clientId: client1.id,
       eventType: "WAITING_ROOM_ARRIVED" as const,
       title: "Waiting room — Maria Garcia",
       metadata: { waitingRoomId: "seed-waiting-room-maria" },
+      actorUserId: checkedInById,
+    },
+    {
+      id: "seed-timeline-wr-james",
+      clientId: client2.id,
+      eventType: "WAITING_ROOM_ARRIVED" as const,
+      title: "Waiting room — James Wilson",
+      metadata: { waitingRoomId: "seed-waiting-room-james" },
       actorUserId: checkedInById,
     },
     {
@@ -726,6 +828,14 @@ async function main() {
       metadata: { checkInId: checkInSofia.id },
       actorUserId: checkedInById,
     },
+    {
+      id: "seed-timeline-wr-sofia",
+      clientId: client3.id,
+      eventType: "WAITING_ROOM_ARRIVED" as const,
+      title: "Waiting room — Sofia Chen",
+      metadata: { waitingRoomId: "seed-waiting-room-sofia" },
+      actorUserId: checkedInById,
+    },
   ];
 
   for (const event of phase4Timeline) {
@@ -733,6 +843,49 @@ async function main() {
       where: { id: event.id },
       update: {},
       create: event,
+    });
+  }
+
+  const phase4Audits = [
+    {
+      id: "seed-audit-appt-today-maria",
+      entityType: "Appointment" as const,
+      entityId: apptTodayMaria.id,
+      clientId: client1.id,
+    },
+    {
+      id: "seed-audit-appt-today-james",
+      entityType: "Appointment" as const,
+      entityId: apptTodayJames.id,
+      clientId: client2.id,
+    },
+    {
+      id: "seed-audit-appt-today-sofia",
+      entityType: "Appointment" as const,
+      entityId: apptTodaySofia.id,
+      clientId: client3.id,
+    },
+    {
+      id: "seed-audit-intervention-walkin",
+      entityType: "StaffIntervention" as const,
+      entityId: "seed-intervention-walkin",
+      clientId: client2.id,
+    },
+  ];
+
+  for (const log of phase4Audits) {
+    await prisma.auditLog.upsert({
+      where: { id: log.id },
+      update: {},
+      create: {
+        id: log.id,
+        action: "CREATE",
+        entityType: log.entityType,
+        entityId: log.entityId,
+        userId: admin.id,
+        clientId: log.clientId,
+        metadata: { source: "seed", phase: "phase4" },
+      },
     });
   }
 

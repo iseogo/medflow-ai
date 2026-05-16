@@ -28,6 +28,7 @@ export const DASHBOARD_ROUTE_RULES: RouteRule[] = [
   { prefix: "/dashboard/sms", permissions: ["communications:read"] },
   { prefix: "/dashboard/emails", permissions: ["communications:read"] },
   { prefix: "/dashboard/agent-coordination", permissions: ["orchestrator:read"] },
+  { prefix: "/dashboard/reminders", permissions: ["reminders:read"] },
   { prefix: "/dashboard/audit-logs", permissions: ["audit:read"] },
   { prefix: "/dashboard/settings", permissions: ["settings:read"] },
   { prefix: "/dashboard/access-denied", permissions: ["settings:read"] },
@@ -36,12 +37,11 @@ export const DASHBOARD_ROUTE_RULES: RouteRule[] = [
 export function canAccessDashboardRoute(role: RoleType, pathname: string): boolean {
   if (pathname === "/dashboard/access-denied") return true;
 
-  const rule =
-    DASHBOARD_ROUTE_RULES.filter((r) =>
-      r.exact ? pathname === r.prefix : pathname.startsWith(r.prefix)
-    ).sort((a, b) => b.prefix.length - a.prefix.length)[0] ??
-    DASHBOARD_ROUTE_RULES.find((r) => r.prefix === "/dashboard");
+  const matches = DASHBOARD_ROUTE_RULES.filter((r) =>
+    r.exact ? pathname === r.prefix : pathname.startsWith(r.prefix)
+  ).sort((a, b) => b.prefix.length - a.prefix.length);
 
+  const rule = matches[0];
   if (!rule) return false;
   return hasAnyPermission(role, rule.permissions);
 }

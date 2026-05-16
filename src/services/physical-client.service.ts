@@ -4,6 +4,10 @@ import {
   Prisma,
   WaitingRoomState,
 } from "@prisma/client";
+import {
+  ACTIVE_WAITING_ROOM_STATES,
+  assertValidWaitingRoomTransition,
+} from "@/lib/waiting-room";
 import { prisma } from "@/lib/prisma";
 import {
   actorFromSession,
@@ -12,10 +16,6 @@ import {
 } from "@/lib/physical-events";
 import type { StaffOverrideActor } from "@/lib/staff-override";
 import type { RequestMeta } from "@/lib/api-auth";
-import {
-  ACTIVE_WAITING_ROOM_STATES,
-  TERMINAL_WAITING_ROOM_STATES,
-} from "@/lib/waiting-room";
 
 export type CommunicationPreferencesInput = {
   voice?: boolean;
@@ -553,6 +553,8 @@ export const physicalClientService = {
       include: { appointment: true, physicalCheckIn: true },
     });
     if (!existing) throw new Error("WAITING_ROOM_NOT_FOUND");
+
+    assertValidWaitingRoomTransition(existing.state, state);
 
     const now = new Date();
     const waitDurationMinutes = computeWaitMinutes(existing.arrivedAt, now);

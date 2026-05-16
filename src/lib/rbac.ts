@@ -29,7 +29,9 @@ export type Permission =
   | "communications:write"
   | "orchestrator:read"
   | "orchestrator:write"
-  | "orchestrator:review";
+  | "orchestrator:review"
+  | "reminders:read"
+  | "reminders:write";
 
 export const ROLE_PERMISSIONS: Record<RoleType, Permission[]> = {
   ADMIN: [
@@ -61,6 +63,8 @@ export const ROLE_PERMISSIONS: Record<RoleType, Permission[]> = {
     "orchestrator:read",
     "orchestrator:write",
     "orchestrator:review",
+    "reminders:read",
+    "reminders:write",
   ],
   MANAGER: [
     "clients:read",
@@ -81,6 +85,8 @@ export const ROLE_PERMISSIONS: Record<RoleType, Permission[]> = {
     "settings:read",
     "communications:read",
     "orchestrator:read",
+    "reminders:read",
+    "reminders:write",
   ],
   FRONT_DESK_STAFF: [
     "clients:read",
@@ -96,6 +102,8 @@ export const ROLE_PERMISSIONS: Record<RoleType, Permission[]> = {
     "settings:read",
     "communications:read",
     "orchestrator:read",
+    "reminders:read",
+    "reminders:write",
   ],
   BILLING_STAFF: [
     "clients:read-limited",
@@ -122,6 +130,7 @@ export const ROLE_PERMISSIONS: Record<RoleType, Permission[]> = {
     "staff-intervention:read",
     "settings:read",
     "orchestrator:read",
+    "reminders:read",
   ],
   READ_ONLY: [
     "clients:read",
@@ -138,6 +147,7 @@ export const ROLE_PERMISSIONS: Record<RoleType, Permission[]> = {
     "settings:read",
     "communications:read",
     "orchestrator:read",
+    "reminders:read",
   ],
 };
 

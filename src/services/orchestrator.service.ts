@@ -17,15 +17,19 @@ export type OrchestratorContext = {
   userId?: string;
   /** Required for AI-originated sends — set by Master Orchestrator after approval */
   approvedProposalId?: string;
-  source?: "staff" | "master_orchestrator";
+  source?: "staff" | "master_orchestrator" | "automation";
 };
 
 function assertCommunicationAuthorized(ctx: OrchestratorContext) {
-  if (ctx.source === "staff" || ctx.source === "master_orchestrator") {
+  if (
+    ctx.source === "staff" ||
+    ctx.source === "master_orchestrator" ||
+    ctx.source === "automation"
+  ) {
     return;
   }
   throw new Error(
-    "Direct communication sends are blocked. Use Master Orchestrator proposal flow or staff source."
+    "Direct communication sends are blocked. Use Master Orchestrator proposal flow, staff source, or automation (reminder engine) with a system userId."
   );
 }
 
@@ -144,7 +148,7 @@ export const orchestratorService = {
         status: statusMap[stub.status] ?? "SENT",
         externalRef: stub.externalRef,
         durationSeconds: stub.durationSeconds,
-        provider: "twilio_stub",
+        provider: stub.provider,
       },
       include: {
         client: { select: { firstName: true, lastName: true } },
@@ -269,6 +273,7 @@ export const orchestratorService = {
       data: {
         status: stub.status === "BOUNCED" ? "BOUNCED" : "DELIVERED",
         externalRef: stub.externalRef,
+        provider: stub.provider,
       },
       include: {
         client: { select: { firstName: true, lastName: true } },

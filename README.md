@@ -1,8 +1,8 @@
-# MedFlow AI — Phase 1
+# MedFlow AI
 
-Foundation for a healthcare AI communication platform. Phase 1 delivers authentication, role-based access, core data models, dashboard UI, unified client timelines, and audit logging.
+Production-oriented healthcare operations app spanning **Phases 1–6**: core foundation, communication logging, Master Orchestrator with AI agents, staff RBAC, physical front-desk flows (walk-ins, check-ins, waiting room), and the appointment reminder engine. Historical phase notes below; see **README-PHASE2.md** through **README-PHASE6.md** for detail.
 
-**Out of scope for Phase 1:** AI calls, SMS, email, reminders, insurance, and medical records.
+**Still future (Phase 7+):** scheduled cron runners at scale, insurance, and medical records APIs.
 
 ## Infrastructure
 
@@ -214,6 +214,11 @@ Session required on all routes except `/api/health` and `/api/auth/*`. Permissio
 | `npm run db:push` | Push schema without migrations |
 | `npm run db:seed` | Seed roles + admin + sample data |
 | `npm run db:studio` | Prisma Studio |
+| `npm run audit:system-coherence` | Cross-phase schema, RBAC, TypeScript, and data coherence audit |
+| `npm run audit:production` | Production readiness — API RBAC, orchestration, relational integrity, build |
+| `npm run audit:integrations` | Phase 6 mock-mode and provider configuration audit |
+| `npm run audit:architecture` | Deep cross-phase architecture audit (coherence, coordination, compatibility, scalability, security) |
+| `npm run audit:staff-rbac` | Staff accounts and RBAC matrix audit |
 
 ## Security notes
 
@@ -238,10 +243,22 @@ Staff accounts, RBAC, and authentication hardening. See **[README-PHASE3-5.md](.
 
 Physical client management — walk-ins, check-ins, waiting room. See **[README-PHASE4.md](./README-PHASE4.md)**.
 
+## Phase 5
+
+AI voice-first appointment reminder engine (48h / 24h / 2h / 30m), with SMS and email fallbacks, consent checks, duplicate prevention, and `ReminderLog` outcomes. See **[README-PHASE5.md](./README-PHASE5.md)**.
+
+## Phase 6
+
+Real external integrations (Twilio, Vapi/Retell, Gmail/SendGrid, Google Calendar, n8n, OpenAI) with **`MOCK_MODE=true` by default** — no live traffic until credentials and `MOCK_MODE=false`. See **[README-PHASE6.md](./README-PHASE6.md)** and **[docs/INTEGRATIONS.md](./docs/INTEGRATIONS.md)**.
+
 ```bash
+npm run audit:architecture
+npm run audit:production
+npm run audit:system-coherence
+npm run audit:integrations
 npm run audit:staff-rbac
 ```
 
 ## Next phases
 
-Phase 4+ will wire real Twilio/Vapi/Gmail/n8n, reminders, insurance, and medical records APIs.
+Phase 7+ — production cron scheduling, insurance APIs, and medical records fulfillment.

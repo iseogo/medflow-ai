@@ -83,6 +83,22 @@ export const USER_STATUS_LABELS: Record<string, string> = {
   SUSPENDED: "Suspended",
 };
 
+export const REMINDER_OFFSET_LABELS: Record<string, string> = {
+  HOURS_48: "48 hours before",
+  HOURS_24: "24 hours before",
+  HOURS_2: "2 hours before",
+  MINUTES_30: "30 minutes before",
+};
+
+export const REMINDER_OUTCOME_LABELS: Record<string, string> = {
+  CONFIRMED: "Confirmed",
+  CANCELLED: "Cancelled",
+  RESCHEDULE_REQUESTED: "Reschedule requested",
+  NO_RESPONSE: "No response",
+  FAILED: "Failed",
+  ESCALATED: "Escalated",
+};
+
 export const ROLE_LABELS: Record<string, string> = {
   ADMIN: "Administrator",
   MANAGER: "Manager",

@@ -19,6 +19,11 @@
     "audit:cross-phase": "tsx scripts/cross-phase-audit.ts",
     "audit:full-coordination": "tsx scripts/full-coordination-audit.ts",
     "audit:staff-rbac": "tsx scripts/staff-rbac-audit.ts",
+    "audit:system-coherence": "tsx scripts/system-coherence-audit.ts",
+    "audit:production": "tsx scripts/final-production-audit.ts",
+    "audit:integrations": "tsx scripts/integrations-audit.ts",
+    "audit:architecture": "tsx scripts/architecture-audit.ts",
+    "backfill:appointment-events": "tsx scripts/backfill-appointment-created-events.ts",
     "postinstall": "prisma generate"
   },
   "prisma": {

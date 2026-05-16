@@ -22,6 +22,7 @@ const updateSchema = z.object({
   location: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
   staffOverride: z.boolean().optional(),
+  reminderAutomationPaused: z.boolean().optional(),
 });
 
 type RouteContext = { params: { id: string } };

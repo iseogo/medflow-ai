@@ -161,6 +161,7 @@ enum TimelineEventType {
   WAITING_ROOM_ARRIVED
   WAITING_ROOM_STATUS_CHANGED
   PROVIDER_NOTIFIED
+  REMINDER_CYCLE_COMPLETED
 }
 
 enum ConsentType {
@@ -170,6 +171,23 @@ enum ConsentType {
   RECORDS_RELEASE
   TREATMENT
   MARKETING
+}
+
+// T-48h, T-24h, T-2h, T-30m before appointment
+enum ReminderScheduleOffset {
+  HOURS_48
+  HOURS_24
+  HOURS_2
+  MINUTES_30
+}
+
+enum ReminderOutcome {
+  CONFIRMED
+  CANCELLED
+  RESCHEDULE_REQUESTED
+  NO_RESPONSE
+  FAILED
+  ESCALATED
 }
 
 enum AuditAction {
@@ -271,6 +289,7 @@ model Client {
   walkInVisits             WalkInVisit[]
   physicalCheckIns         PhysicalCheckIn[]
   waitingRoomEntries       WaitingRoomStatus[]
+  reminderLogs             ReminderLog[]
 
   @@index([lastName, firstName])
   @@index([phone])
@@ -302,10 +321,13 @@ model Appointment {
   walkInVisits        WalkInVisit[]
   physicalCheckIns    PhysicalCheckIn[]
   waitingRoomEntries  WaitingRoomStatus[]
+  reminderLogs        ReminderLog[]
+  reminderAutomationPaused Boolean @default(false)
 
   @@index([clientId])
   @@index([scheduledAt])
   @@index([status])
+  @@index([reminderAutomationPaused])
 }
 
 model WalkInVisit {
@@ -418,6 +440,7 @@ model CallLog {
   initiatedBy     User?               @relation("CallInitiator", fields: [initiatedById], references: [id], onDelete: SetNull)
   createdAt       DateTime            @default(now())
   updatedAt       DateTime            @updatedAt
+  reminderLogsVoice ReminderLog[]
 
   @@index([clientId])
   @@index([appointmentId])
@@ -444,6 +467,7 @@ model SmsLog {
   initiatedBy   User?               @relation("SmsInitiator", fields: [initiatedById], references: [id], onDelete: SetNull)
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
+  reminderLogsSms ReminderLog[]
 
   @@index([clientId])
   @@index([appointmentId])
@@ -471,6 +495,7 @@ model EmailLog {
   initiatedBy   User?               @relation("EmailInitiator", fields: [initiatedById], references: [id], onDelete: SetNull)
   createdAt     DateTime            @default(now())
   updatedAt     DateTime            @updatedAt
+  reminderLogsEmail ReminderLog[]
 
   @@index([clientId])
   @@index([appointmentId])
@@ -642,4 +667,28 @@ model ConsentRecord {
   createdAt  DateTime    @default(now())
 
   @@index([clientId])
+}
+
+model ReminderLog {
+  id               String                @id @default(cuid())
+  appointmentId    String
+  appointment      Appointment           @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+  clientId         String
+  client           Client                @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  reminderOffset   ReminderScheduleOffset
+  outcome          ReminderOutcome
+  dueAt            DateTime
+  voiceCallLogId   String?
+  voiceCallLog     CallLog?              @relation(fields: [voiceCallLogId], references: [id], onDelete: SetNull)
+  smsLogId         String?
+  smsLog           SmsLog?               @relation(fields: [smsLogId], references: [id], onDelete: SetNull)
+  emailLogId       String?
+  emailLog         EmailLog?             @relation(fields: [emailLogId], references: [id], onDelete: SetNull)
+  metadata         Json?
+  createdAt        DateTime              @default(now())
+
+  @@unique([appointmentId, reminderOffset])
+  @@index([clientId])
+  @@index([dueAt])
+  @@index([outcome])
 }

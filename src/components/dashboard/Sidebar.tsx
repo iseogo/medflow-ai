@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  CreditCard,
+  NotebookPen,
   Bot,
   Calendar,
   ClipboardList,
@@ -17,6 +19,7 @@ import {
   UserPlus,
   Users,
   FileStack,
+  BellRing,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -42,6 +45,8 @@ const mainNav: NavItem[] = [
     icon: ClipboardList,
   },
   { href: "/dashboard/medical-records", label: "Medical Records", icon: FileStack },
+  { href: "/dashboard/billing", label: "Billing", icon: CreditCard },
+  { href: "/dashboard/clinical-notes", label: "Clinical Notes", icon: NotebookPen },
 ];
 
 const physicalNav: NavItem[] = [
@@ -55,6 +60,7 @@ const adminNav: NavItem[] = [
 ];
 
 const commsNav: NavItem[] = [
+  { href: "/dashboard/reminders", label: "Reminders", icon: BellRing },
   { href: "/dashboard/calls", label: "Calls", icon: Phone },
   { href: "/dashboard/outbound-calls", label: "Outbound Calls", icon: PhoneOutgoing },
   { href: "/dashboard/sms", label: "SMS", icon: MessageSquare },
@@ -153,7 +159,7 @@ export function Sidebar() {
         </div>
         <div>
           <p className="text-sm font-semibold text-slate-900">MedFlow AI</p>
-          <p className="text-xs text-slate-500">Phase 4</p>
+          <p className="text-xs text-slate-500">Phases 1–6</p>
         </div>
       </div>
       <nav className="flex-1 space-y-6 overflow-y-auto p-4">

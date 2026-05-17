@@ -1,5 +1,14 @@
-import { PrismaClient, RoleType } from "@prisma/client";
+import {
+  NotificationCategory,
+  NotificationPriority,
+  NotificationSource,
+  NotificationStatus,
+  Prisma,
+  PrismaClient,
+  RoleType,
+} from "@prisma/client";
 import bcrypt from "bcryptjs";
+import { NOTIFICATION_SOURCE_DEFAULTS } from "../src/lib/notifications/notification-sources";
 
 const prisma = new PrismaClient();
 
@@ -889,15 +898,259 @@ async function main() {
     });
   }
 
+  await prisma.callLog.upsert({
+    where: { id: "seed-call-inbound-review" },
+    update: { status: "NO_ANSWER" },
+    create: {
+      id: "seed-call-inbound-review",
+      clientId: client2.id,
+      appointmentId: "seed-appt-10002",
+      purpose: "inbound_scheduling_inquiry",
+      status: "NO_ANSWER",
+      direction: "INBOUND",
+      phoneNumber: client2.phone,
+      externalRef: "call_inbound_stub_seed",
+      initiatedById: admin.id,
+    },
+  });
+
+  type DemoNotificationSeed = {
+    id: string;
+    source: NotificationSource;
+    title: string;
+    message: string;
+    status?: NotificationStatus;
+    clientId?: string;
+    appointmentId?: string;
+    staffTaskId?: string;
+    agentActionId?: string;
+    staffInterventionId?: string;
+    workflowKey?: string;
+    assignedRole?: RoleType;
+    assignedUserId?: string;
+    category?: NotificationCategory;
+    priority?: NotificationPriority;
+    recommendedNextAction?: string;
+    createAudit?: boolean;
+    acknowledgedAt?: Date;
+  };
+
+  const demoMeta = (extra?: Record<string, unknown>): Prisma.InputJsonValue => ({
+    mockDelivery: true,
+    seed: true,
+    phase: "phase11-demo",
+    ...extra,
+  });
+
+  const demoNotifications: DemoNotificationSeed[] = [
+    {
+      id: "seed-notif-staff-intervention",
+      source: "STAFF_INTERVENTION_REQUIRED",
+      title: "Urgent: walk-in needs staff review",
+      message:
+        "James Wilson arrived without an appointment. Front desk intervention is open.",
+      clientId: client2.id,
+      staffInterventionId: "seed-intervention-walkin",
+      assignedRole: "ADMIN",
+      assignedUserId: admin.id,
+      status: "UNREAD",
+      createAudit: true,
+    },
+    {
+      id: "seed-notif-reminder-failed",
+      source: "REMINDER_FAILED",
+      title: "Reminder failed or escalated",
+      message:
+        "Voice reminder for Maria Garcia (48h offset) did not complete. Review reminder log and contact patient.",
+      clientId: client1.id,
+      appointmentId: appt1.id,
+      assignedRole: "ADMIN",
+      status: "UNREAD",
+      createAudit: true,
+    },
+    {
+      id: "seed-notif-inbound-call",
+      source: "INBOUND_CALL_HUMAN_REVIEW",
+      title: "Inbound call needs review",
+      message:
+        "Inbound scheduling inquiry from James Wilson — status NO_ANSWER. Staff review required.",
+      clientId: client2.id,
+      appointmentId: "seed-appt-10002",
+      workflowKey: "seed-call-inbound-review",
+      assignedRole: "ADMIN",
+      status: "UNREAD",
+      createAudit: true,
+    },
+    {
+      id: "seed-notif-waiting-room-delay",
+      source: "WAITING_ROOM_DELAY",
+      title: "Waiting room delay",
+      message:
+        "Sofia Chen has been waiting 52+ minutes (demo threshold exceeded). Check wait times and notify provider.",
+      clientId: client3.id,
+      appointmentId: apptTodaySofia.id,
+      workflowKey: "seed-waiting-room-sofia",
+      assignedRole: "ADMIN",
+      status: "UNREAD",
+      createAudit: true,
+    },
+    {
+      id: "seed-notif-ai-low-confidence",
+      source: "AI_LOW_CONFIDENCE",
+      title: "AI proposal needs review",
+      message:
+        "SMS reminder proposal for Maria Garcia has low confidence — review in Agent Coordination before approval.",
+      clientId: client1.id,
+      appointmentId: appt1.id,
+      agentActionId: "seed-agent-pending-1",
+      assignedRole: "ADMIN",
+      status: "UNREAD",
+      createAudit: true,
+    },
+    {
+      id: "seed-notif-supervisor-warning",
+      source: "SUPERVISOR_WARNING",
+      title: "Supervisor: billing escalation observed",
+      message:
+        "Escalation AI flagged a billing question for James Wilson. Review supervisor dashboard (observe-only).",
+      clientId: client2.id,
+      agentActionId: "seed-agent-escalation-1",
+      workflowKey: "DUPLICATE_ACTION",
+      assignedRole: "ADMIN",
+      status: "READ",
+      createAudit: true,
+    },
+    {
+      id: "seed-notif-webhook-failure",
+      source: "WEBHOOK_FAILURE",
+      title: "Webhook authentication failed",
+      message:
+        "Demo: rejected inbound-call webhook — verify WEBHOOK_SECRET (in-app only; MOCK_MODE safe).",
+      assignedRole: "ADMIN",
+      workflowKey: "inbound-call",
+      status: "UNREAD",
+      createAudit: true,
+    },
+    {
+      id: "seed-notif-appointment-confirmed",
+      source: "PATIENT_CONFIRMED_APPOINTMENT",
+      title: "Patient confirmed appointment",
+      message:
+        "Maria Garcia confirmed her wellness visit via AI voice reminder (demo). Schedule is up to date.",
+      clientId: client1.id,
+      appointmentId: appt1.id,
+      assignedRole: "ADMIN",
+      status: "ACKNOWLEDGED",
+      acknowledgedAt: new Date(),
+    },
+  ];
+
+  for (const n of demoNotifications) {
+    const defaults = NOTIFICATION_SOURCE_DEFAULTS[n.source];
+    const category = n.category ?? defaults.category;
+    const priority = n.priority ?? defaults.priority;
+    const acknowledgedAt = n.acknowledgedAt;
+
+    await prisma.staffNotification.upsert({
+      where: { id: n.id },
+      update: {
+        title: n.title,
+        message: n.message,
+        category,
+        priority,
+        status: n.status ?? "UNREAD",
+        source: n.source,
+        sourceKey: `seed:${n.id}`,
+        recommendedNextAction:
+          n.recommendedNextAction ?? defaults.recommendedNextAction,
+        clientId: n.clientId,
+        appointmentId: n.appointmentId,
+        staffTaskId: n.staffTaskId,
+        agentActionId: n.agentActionId,
+        staffInterventionId: n.staffInterventionId,
+        workflowKey: n.workflowKey,
+        assignedRole: n.assignedRole ?? defaults.roles[0],
+        assignedUserId: n.assignedUserId,
+        metadata: demoMeta({ targetRoles: defaults.roles }),
+        createdByUserId: admin.id,
+        acknowledgedAt,
+      },
+      create: {
+        id: n.id,
+        title: n.title,
+        message: n.message,
+        category,
+        priority,
+        status: n.status ?? "UNREAD",
+        source: n.source,
+        sourceKey: `seed:${n.id}`,
+        recommendedNextAction:
+          n.recommendedNextAction ?? defaults.recommendedNextAction,
+        clientId: n.clientId,
+        appointmentId: n.appointmentId,
+        staffTaskId: n.staffTaskId,
+        agentActionId: n.agentActionId,
+        staffInterventionId: n.staffInterventionId,
+        workflowKey: n.workflowKey,
+        assignedRole: n.assignedRole ?? defaults.roles[0],
+        assignedUserId: n.assignedUserId,
+        metadata: demoMeta({ targetRoles: defaults.roles }),
+        createdByUserId: admin.id,
+        acknowledgedAt,
+      },
+    });
+
+    if (n.createAudit) {
+      await prisma.auditLog.upsert({
+        where: { id: `seed-audit-${n.id}` },
+        update: {},
+        create: {
+          id: `seed-audit-${n.id}`,
+          action: "CREATE",
+          entityType: "StaffNotification",
+          entityId: n.id,
+          userId: admin.id,
+          clientId: n.clientId,
+          metadata: demoMeta({
+            source: n.source,
+            category,
+            priority,
+            seedNotification: true,
+          }),
+        },
+      });
+    }
+  }
+
+  await prisma.clientTimelineEvent.upsert({
+    where: { id: "seed-timeline-notif-confirmed" },
+    update: {},
+    create: {
+      id: "seed-timeline-notif-confirmed",
+      clientId: client1.id,
+      eventType: "STAFF_NOTIFICATION",
+      title: "Patient confirmed appointment",
+      description:
+        "Demo in-app notification — Maria Garcia confirmed wellness visit.",
+      metadata: demoMeta({ notificationId: "seed-notif-appointment-confirmed" }),
+      actorUserId: admin.id,
+    },
+  });
+
   const roleCount = await prisma.role.count();
   if (roleCount !== ROLES.length) {
     throw new Error(`Expected ${ROLES.length} roles, found ${roleCount}`);
   }
 
+  const notifCount = await prisma.staffNotification.count({
+    where: { sourceKey: { startsWith: "seed:" } },
+  });
+
   console.log("Seed complete.");
   console.log(`  Staff users: ${STAFF_USERS.length} (each with individual bcrypt hash)`);
   console.log(`  Admin: ${ADMIN_EMAIL}`);
   console.log("  Waiting room demo: Maria (CHECKED_IN), James (WITH_PROVIDER), Sofia (WAITING)");
+  console.log(`  Phase 11 demo notifications: ${notifCount} (admin-visible in-app samples)`);
 }
 
 main()

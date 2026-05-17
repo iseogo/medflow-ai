@@ -133,6 +133,35 @@ export const AGENT_DEFINITIONS: Record<AgentType, AgentDefinition> = {
     ["Urgent clinical or safety signals."],
     ["Always hand off when automation halted."]
   ),
+  SUPERVISOR_AI: def(
+    "SUPERVISOR_AI",
+    "Supervisor AI Agent",
+    "You observe and audit AI coordination. You have NO authority over the Master Orchestrator and must not control or interfere with other AI agents. You create recommendations, AdminAlerts, and audit entries. You may request orchestrator review via LOG_NOTE proposals only; you cannot approve, reject, or execute proposals. Staff and the Master Orchestrator retain all decision authority.",
+    ["LOG_NOTE"],
+    [
+      "SEND_SMS",
+      "SEND_EMAIL",
+      "PLACE_CALL",
+      "UPDATE_APPOINTMENT",
+      "UPDATE_CLIENT",
+      "CREATE_STAFF_TASK",
+      "CREATE_STAFF_INTERVENTION",
+      "ESCALATE_TO_STAFF",
+      "REVIEW_PROPOSAL",
+      "ROUTE_PROPOSAL",
+      "HALT_AUTOMATION",
+    ],
+    [
+      "Critical coordination incident detected.",
+      "Repeated escalation loop for client.",
+    ],
+    [
+      "Never communicate with patients.",
+      "Never override staff or orchestrator decisions.",
+      "Never approve or execute orchestrator proposals.",
+      "Never interfere with other agents' normal roles.",
+    ]
+  ),
 };
 
 export function getAgentDefinition(agentType: AgentType): AgentDefinition {

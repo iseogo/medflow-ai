@@ -16,6 +16,7 @@ import {
 } from "@/lib/physical-events";
 import type { StaffOverrideActor } from "@/lib/staff-override";
 import type { RequestMeta } from "@/lib/api-auth";
+import { notificationService } from "@/services/notification.service";
 
 export type CommunicationPreferencesInput = {
   voice?: boolean;
@@ -299,6 +300,17 @@ export const physicalClientService = {
         appointmentId: result.appointment.id,
       },
       appointmentId: result.appointment.id,
+    });
+
+    await notificationService.emit({
+      source: "WALK_IN_ARRIVED",
+      sourceKey: `walk-in:${result.walkIn.id}`,
+      title: "Walk-in arrived",
+      message: `${result.client.firstName} ${result.client.lastName} registered as walk-in.`,
+      clientId: result.client.id,
+      appointmentId: result.appointment.id,
+      createdByUserId: actor.userId,
+      actorChannel: "staff",
     });
 
     await recordPhysicalEvent({

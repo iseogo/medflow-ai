@@ -31,7 +31,11 @@ export type Permission =
   | "orchestrator:write"
   | "orchestrator:review"
   | "reminders:read"
-  | "reminders:write";
+  | "reminders:write"
+  | "supervisor:read"
+  | "supervisor:run"
+  | "notifications:read"
+  | "notifications:write";
 
 export const ROLE_PERMISSIONS: Record<RoleType, Permission[]> = {
   ADMIN: [
@@ -65,6 +69,10 @@ export const ROLE_PERMISSIONS: Record<RoleType, Permission[]> = {
     "orchestrator:review",
     "reminders:read",
     "reminders:write",
+    "supervisor:read",
+    "supervisor:run",
+    "notifications:read",
+    "notifications:write",
   ],
   MANAGER: [
     "clients:read",
@@ -87,6 +95,10 @@ export const ROLE_PERMISSIONS: Record<RoleType, Permission[]> = {
     "orchestrator:read",
     "reminders:read",
     "reminders:write",
+    "supervisor:read",
+    "supervisor:run",
+    "notifications:read",
+    "notifications:write",
   ],
   FRONT_DESK_STAFF: [
     "clients:read",
@@ -104,6 +116,8 @@ export const ROLE_PERMISSIONS: Record<RoleType, Permission[]> = {
     "orchestrator:read",
     "reminders:read",
     "reminders:write",
+    "notifications:read",
+    "notifications:write",
   ],
   BILLING_STAFF: [
     "clients:read-limited",
@@ -112,12 +126,16 @@ export const ROLE_PERMISSIONS: Record<RoleType, Permission[]> = {
     "staff-tasks:read",
     "staff-tasks:write",
     "settings:read",
+    "notifications:read",
+    "notifications:write",
   ],
   MEDICAL_RECORDS_STAFF: [
     "clients:read-limited",
     "medical-records:read",
     "medical-records:write",
     "settings:read",
+    "notifications:read",
+    "notifications:write",
   ],
   CLINICAL_STAFF: [
     "clients:read",
@@ -131,6 +149,8 @@ export const ROLE_PERMISSIONS: Record<RoleType, Permission[]> = {
     "settings:read",
     "orchestrator:read",
     "reminders:read",
+    "notifications:read",
+    "notifications:write",
   ],
   READ_ONLY: [
     "clients:read",
@@ -148,6 +168,7 @@ export const ROLE_PERMISSIONS: Record<RoleType, Permission[]> = {
     "communications:read",
     "orchestrator:read",
     "reminders:read",
+    "notifications:read",
   ],
 };
 

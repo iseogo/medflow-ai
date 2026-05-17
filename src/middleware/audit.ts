@@ -14,6 +14,7 @@ const SENSITIVE_API_PREFIXES = [
   "/api/orchestrator",
   "/api/agent-actions",
   "/api/reminders",
+  "/api/supervisor",
 ];
 
 /**

@@ -24,7 +24,10 @@
     "audit:integrations": "tsx scripts/integrations-audit.ts",
     "audit:architecture": "tsx scripts/architecture-audit.ts",
     "audit:coordination": "tsx scripts/coordination-audit.ts",
+    "audit:global-coordination": "tsx scripts/global-coordination-audit.ts",
     "audit:security": "tsx scripts/security-audit.ts",
+    "audit:supervisor": "tsx scripts/supervisor-audit.ts",
+    "audit:notifications": "tsx scripts/notifications-audit.ts",
     "backfill:appointment-events": "tsx scripts/backfill-appointment-created-events.ts",
     "generate:n8n-workflows": "tsx scripts/generate-n8n-workflows.ts",
     "postinstall": "prisma generate"

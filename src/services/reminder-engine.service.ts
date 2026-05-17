@@ -18,6 +18,7 @@ import { prisma } from "@/lib/prisma";
 import type { ReminderOutcome, ReminderScheduleOffset } from "@/lib/reminder-types";
 import { REMINDER_SCHEDULE_OFFSETS } from "@/lib/reminder-types";
 import { addTimelineEvent } from "@/lib/timeline";
+import { notificationService } from "@/services/notification.service";
 import { n8nService } from "./n8n.service";
 import { orchestratorService } from "./orchestrator.service";
 import {
@@ -228,6 +229,16 @@ async function applyClientIntent(
       metadata: { appointmentId, source: "reminder_engine" },
       actorUserId: systemUserId,
     });
+    await notificationService.emit({
+      source: "PATIENT_CONFIRMED_APPOINTMENT",
+      sourceKey: `patient-confirmed:${appointmentId}`,
+      title: "Patient confirmed appointment",
+      message: "Client confirmed via AI voice reminder.",
+      clientId,
+      appointmentId,
+      createdByUserId: systemUserId,
+      actorChannel: "orchestrator",
+    });
     return "CONFIRMED";
   }
 
@@ -244,12 +255,23 @@ async function applyClientIntent(
       metadata: { appointmentId, source: "reminder_engine", slotReopened: true },
       actorUserId: systemUserId,
     });
-    await notifyStaffTask({
+    const task = await notifyStaffTask({
       title: "Client cancelled via reminder call",
       description: `Appointment ${appointmentId} cancelled by client during AI reminder. Slot reopened.`,
       clientId,
       createdById: systemUserId,
       priority: "URGENT",
+    });
+    await notificationService.emit({
+      source: "PATIENT_CANCELLED_APPOINTMENT",
+      sourceKey: `patient-cancelled:${appointmentId}`,
+      title: "Patient cancelled appointment",
+      message: "Client cancelled during AI voice reminder. Slot reopened.",
+      clientId,
+      appointmentId,
+      staffTaskId: task.id,
+      createdByUserId: systemUserId,
+      actorChannel: "orchestrator",
     });
     return "CANCELLED";
   }
@@ -269,13 +291,24 @@ async function applyClientIntent(
     },
     actorUserId: systemUserId,
   });
-  await notifyStaffTask({
+  const task = await notifyStaffTask({
     title: "Reschedule requested — offer available slots",
     description:
       "Client asked to reschedule during AI voice reminder. Use scheduling placeholder to propose alternative times.",
     clientId,
     createdById: systemUserId,
     priority: "HIGH",
+  });
+  await notificationService.emit({
+    source: "PATIENT_RESCHEDULE_REQUESTED",
+    sourceKey: `patient-reschedule:${appointmentId}`,
+    title: "Reschedule requested",
+    message: "Client asked to reschedule during AI voice reminder.",
+    clientId,
+    appointmentId,
+    staffTaskId: task.id,
+    createdByUserId: systemUserId,
+    actorChannel: "orchestrator",
   });
   return "RESCHEDULE_REQUESTED";
 }
@@ -587,6 +620,33 @@ export const reminderEngineService = {
       },
       actorUserId: userId,
     });
+
+    if (outcome === "FAILED" || outcome === "ESCALATED") {
+      await notificationService.emit({
+        source: "REMINDER_FAILED",
+        sourceKey: `reminder-failed:${reminderLog.id}`,
+        title: "Reminder failed or escalated",
+        message: `Reminder ${offset} outcome: ${outcome}. Review reminder log and contact patient.`,
+        clientId: appointment.clientId,
+        appointmentId,
+        staffTaskId: escalationTaskId ?? undefined,
+        metadata: { reminderLogId: reminderLog.id, outcome, offset },
+        createdByUserId: userId,
+        actorChannel: "orchestrator",
+      });
+    } else if (outcome === "NO_RESPONSE") {
+      await notificationService.emit({
+        source: "PATIENT_NO_RESPONSE",
+        sourceKey: `patient-no-response:${reminderLog.id}`,
+        title: "Patient did not respond",
+        message: `No response on reminder ${offset.replace(/_/g, " ").toLowerCase()}.`,
+        clientId: appointment.clientId,
+        appointmentId,
+        metadata: { reminderLogId: reminderLog.id },
+        createdByUserId: userId,
+        actorChannel: "orchestrator",
+      });
+    }
 
     return reminderLog;
   },

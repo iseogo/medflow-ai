@@ -116,6 +116,7 @@ enum AgentType {
   EMAIL_AI
   STAFF_ASSISTANT_AI
   ESCALATION_AI
+  SUPERVISOR_AI
 }
 
 enum AgentProposalStatus {
@@ -162,6 +163,9 @@ enum TimelineEventType {
   WAITING_ROOM_STATUS_CHANGED
   PROVIDER_NOTIFIED
   REMINDER_CYCLE_COMPLETED
+  SUPERVISOR_ALERT
+  WORKFLOW_HEALTH
+  STAFF_NOTIFICATION
 }
 
 enum ConsentType {
@@ -201,6 +205,114 @@ enum AuditAction {
   VIEW
   EXPORT
   FILE_ACCESS
+  SUPERVISOR_SCAN
+}
+
+enum AdminAlertSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum AdminAlertStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+  DISMISSED
+}
+
+enum WorkflowHealthStatus {
+  HEALTHY
+  DEGRADED
+  FAILED
+  STUCK
+}
+
+enum CoordinationIncidentType {
+  DUPLICATE_ACTION
+  CONFLICTING_ACTION
+  UNAUTHORIZED_SEND
+  MISSING_AUDIT
+  MISSING_TIMELINE
+  REMINDER_FAILURE
+  WEBHOOK_FAILURE
+  STUCK_WORKFLOW
+  AGENT_VIOLATION
+  ESCALATION_LOOP
+  LOW_CONFIDENCE
+  SCHEDULING_CONFLICT
+  COMMUNICATION_INCONSISTENCY
+  STAFF_OVERRIDE_VIOLATION
+  EMERGENCY_RULE_VIOLATION
+  AI_SAFETY_VIOLATION
+  ORCHESTRATOR_ANOMALY
+}
+
+enum SupervisorRecommendationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  DEFERRED
+}
+
+enum NotificationCategory {
+  ACTION_REQUIRED
+  URGENT
+  EMERGENCY
+  INFO
+  SUCCESS
+  WARNING
+  SYSTEM
+  AI_REVIEW
+  SECURITY
+  STAFF_OVERRIDE
+}
+
+enum NotificationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum NotificationStatus {
+  UNREAD
+  READ
+  ACKNOWLEDGED
+  IN_PROGRESS
+  RESOLVED
+  DISMISSED
+  ESCALATED
+}
+
+enum NotificationSource {
+  INBOUND_CALL_HUMAN_REVIEW
+  OUTBOUND_CALL_FAILED
+  REMINDER_FAILED
+  PATIENT_CONFIRMED_APPOINTMENT
+  PATIENT_CANCELLED_APPOINTMENT
+  PATIENT_RESCHEDULE_REQUESTED
+  PATIENT_NO_RESPONSE
+  WALK_IN_ARRIVED
+  CHECK_IN_COMPLETED
+  WAITING_ROOM_DELAY
+  PATIENT_WITH_PROVIDER
+  APPOINTMENT_COMPLETED
+  PATIENT_NO_SHOW
+  STAFF_INTERVENTION_REQUIRED
+  AI_LOW_CONFIDENCE
+  EMERGENCY_RISK_DETECTED
+  INSURANCE_PAYMENT_ISSUE
+  MEDICAL_RECORDS_REQUEST
+  WEBHOOK_FAILURE
+  INTEGRATION_FAILURE
+  SUPERVISOR_WARNING
+  DUPLICATE_ACTION_PREVENTED
+  STAFF_OVERRIDE_ACTIVATED
+  WORKFLOW_STUCK
+  AUDIT_SECURITY_WARNING
+  MANUAL_STAFF
+  ORCHESTRATOR_ESCALATION
 }
 
 model Role {
@@ -227,6 +339,8 @@ model User {
   updatedAt           DateTime             @updatedAt
   lastLoginAt         DateTime?
   passwordResetTokens PasswordResetToken[]
+  staffNotifications  StaffNotification[]  @relation("NotificationAssignee")
+  notificationPrefs NotificationPreference[]
   staffTasks          StaffTask[]          @relation("AssignedStaff")
   createdTasks        StaffTask[]          @relation("CreatedByUser")
   interventions       StaffIntervention[]  @relation("InterventionStaff")
@@ -292,6 +406,9 @@ model Client {
   physicalCheckIns         PhysicalCheckIn[]
   waitingRoomEntries       WaitingRoomStatus[]
   reminderLogs             ReminderLog[]
+  adminAlerts              AdminAlert[]
+  coordinationIncidents    CoordinationIncident[]
+  staffNotifications       StaffNotification[]
 
   @@index([lastName, firstName])
   @@index([phone])
@@ -693,4 +810,156 @@ model ReminderLog {
   @@index([clientId])
   @@index([dueAt])
   @@index([outcome])
+}
+
+model AdminAlert {
+  id               String             @id @default(cuid())
+  severity         AdminAlertSeverity
+  status           AdminAlertStatus   @default(OPEN)
+  code             String
+  title            String
+  message          String
+  clientId         String?
+  client           Client?            @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  agentActionId    String?
+  appointmentId    String?
+  metadata         Json?
+  acknowledgedById String?
+  acknowledgedAt   DateTime?
+  resolvedAt       DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@index([status])
+  @@index([severity])
+  @@index([code])
+  @@index([createdAt])
+}
+
+model WorkflowHealthEvent {
+  id            String               @id @default(cuid())
+  workflowKey   String
+  status        WorkflowHealthStatus
+  message       String?
+  clientId      String?
+  appointmentId String?
+  agentActionId String?
+  metadata      Json?
+  recordedAt    DateTime             @default(now())
+
+  @@index([workflowKey])
+  @@index([status])
+  @@index([recordedAt])
+}
+
+model AgentPerformanceMetric {
+  id                 String    @id @default(cuid())
+  agentType          AgentType
+  periodStart        DateTime
+  periodEnd          DateTime
+  proposalsSubmitted Int       @default(0)
+  proposalsApproved  Int       @default(0)
+  proposalsRejected  Int       @default(0)
+  proposalsEscalated Int       @default(0)
+  violationsDetected Int       @default(0)
+  metadata           Json?
+  createdAt          DateTime  @default(now())
+
+  @@unique([agentType, periodStart, periodEnd])
+  @@index([agentType])
+  @@index([periodStart])
+}
+
+model CoordinationIncident {
+  id            String                   @id @default(cuid())
+  incidentType  CoordinationIncidentType
+  severity      AdminAlertSeverity
+  title         String
+  description   String?
+  clientId      String?
+  client        Client?                  @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  agentActionId String?
+  appointmentId String?
+  resolved      Boolean                  @default(false)
+  resolvedAt    DateTime?
+  metadata      Json?
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+
+  @@index([incidentType])
+  @@index([resolved])
+  @@index([createdAt])
+}
+
+model SupervisorRecommendation {
+  id              String                         @id @default(cuid())
+  status          SupervisorRecommendationStatus @default(PENDING)
+  code            String
+  title           String
+  description     String
+  correctiveAction String?
+  clientId        String?
+  agentActionId   String?
+  incidentId      String?
+  metadata        Json?
+  createdAt       DateTime                       @default(now())
+  updatedAt       DateTime                       @updatedAt
+
+  @@index([status])
+  @@index([code])
+  @@index([createdAt])
+}
+
+model StaffNotification {
+  id                    String               @id @default(cuid())
+  title                 String
+  message               String
+  category              NotificationCategory
+  priority              NotificationPriority
+  status                NotificationStatus   @default(UNREAD)
+  source                NotificationSource
+  sourceKey             String
+  recommendedNextAction String?
+  clientId              String?
+  client                Client?              @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  appointmentId         String?
+  staffTaskId           String?
+  agentActionId         String?
+  adminAlertId          String?
+  workflowKey           String?
+  assignedRole          RoleType?
+  assignedUserId        String?
+  assignedUser          User?                @relation("NotificationAssignee", fields: [assignedUserId], references: [id], onDelete: SetNull)
+  staffInterventionId   String?
+  metadata              Json?
+  readAt                DateTime?
+  acknowledgedAt        DateTime?
+  resolvedAt            DateTime?
+  dismissedAt           DateTime?
+  escalatedAt           DateTime?
+  createdByUserId       String?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+
+  @@index([sourceKey])
+  @@index([status])
+  @@index([category])
+  @@index([priority])
+  @@index([assignedRole])
+  @@index([assignedUserId])
+  @@index([createdAt])
+}
+
+model NotificationPreference {
+  id           String               @id @default(cuid())
+  userId       String
+  user         User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category     NotificationCategory
+  inAppEnabled Boolean              @default(true)
+  minPriority  NotificationPriority @default(LOW)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  @@unique([userId, category])
+  @@index([userId])
 }

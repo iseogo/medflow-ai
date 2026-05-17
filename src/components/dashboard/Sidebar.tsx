@@ -20,6 +20,8 @@ import {
   Users,
   FileStack,
   BellRing,
+  ShieldCheck,
+  Bell,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -37,6 +39,7 @@ type NavItem = {
 
 const mainNav: NavItem[] = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard, exact: true },
+  { href: "/dashboard/notifications", label: "Notifications", icon: Bell },
   { href: "/dashboard/clients", label: "Clients", icon: Users },
   { href: "/dashboard/appointments", label: "Appointments", icon: Calendar },
   {
@@ -69,6 +72,11 @@ const commsNav: NavItem[] = [
     href: "/dashboard/agent-coordination",
     label: "Agent Coordination",
     icon: Bot,
+  },
+  {
+    href: "/dashboard/supervisor",
+    label: "Supervisor AI",
+    icon: ShieldCheck,
   },
 ];
 

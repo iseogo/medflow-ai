@@ -63,6 +63,7 @@ export const AGENT_TYPE_LABELS: Record<string, string> = {
   EMAIL_AI: "Email AI",
   STAFF_ASSISTANT_AI: "Staff Assistant AI",
   ESCALATION_AI: "Escalation AI",
+  SUPERVISOR_AI: "Supervisor AI",
 };
 
 export const COMMUNICATION_STATUS_LABELS: Record<string, string> = {

@@ -1,5 +1,5 @@
 /**
- * Multi-session / multi-agent coordination audit (Phases 1–7).
+ * Multi-session / multi-agent coordination audit (Phases 1–9 planning).
  * Usage: npm run audit:coordination
  */
 import { existsSync, readdirSync, readFileSync } from "fs";
@@ -98,6 +98,23 @@ const PHASE_ARTIFACTS: Record<
   "Phase 7": {
     readme: "README-PHASE7.md",
     markers: ["n8n-workflows/SAFETY.md", "scripts/generate-n8n-workflows.ts"],
+  },
+  "Phase 9": {
+    readme: "README-PHASE9.md",
+    markers: [
+      "docs/phase9/ROADMAP.md",
+      "docs/phase9/REQUIREMENTS.md",
+      "docs/phase9/COORDINATION.md",
+      "src/lib/scheduling/planning/intelligent-scheduling.service.ts",
+    ],
+  },
+  "Phase 10": {
+    readme: "README-PHASE10.md",
+    markers: [
+      "src/services/supervisor-agent.service.ts",
+      "src/services/admin-alert.service.ts",
+      "docs/supervisor/AI-GOVERNANCE.md",
+    ],
   },
 };
 
@@ -527,6 +544,343 @@ function auditScalability() {
   }
 }
 
+const PHASE9_STABLE_SERVICE_MARKERS = [
+  "src/services/master-orchestrator.service.ts",
+  "src/services/orchestrator.service.ts",
+  "src/services/reminder-engine.service.ts",
+  "src/lib/integrations/webhook-handler.ts",
+  "src/services/physical-client.service.ts",
+];
+
+function readText(rel: string): string {
+  return readFileSync(path.join(process.cwd(), rel), "utf8");
+}
+
+function auditPhase10SupervisorLayer() {
+  const supervisor = readText("src/services/supervisor-agent.service.ts");
+  const gov = readText("docs/supervisor/AI-GOVERNANCE.md");
+
+  if (!existsSync(path.join(process.cwd(), "src/services/supervisor-agent.service.ts"))) {
+    critical("session", "Phase 10: supervisor-agent.service missing");
+  } else {
+    pass("session", "Phase 10: Supervisor AI service present (oversight only)");
+  }
+
+  if (
+    !gov.includes("no authority") &&
+    !gov.includes("NO authority")
+  ) {
+    critical("session", "Phase 10: Supervisor must have no authority over Master Orchestrator");
+  } else {
+    pass("session", "Phase 10: Supervisor has no authority over orchestrator (documented)");
+  }
+
+  if (!gov.includes("central decision authority")) {
+    critical("ai_agent", "Phase 10: Master Orchestrator must be central decision authority");
+  } else {
+    pass("ai_agent", "Phase 10: Master Orchestrator is central decision authority");
+  }
+
+  if (supervisor.includes("reviewProposal") || supervisor.includes("executeApprovedProposal")) {
+    critical("ai_agent", "Phase 10: Supervisor must not review or execute orchestrator proposals");
+  } else {
+    pass("ai_agent", "Phase 10: Supervisor cannot override orchestrator decisions");
+  }
+
+  if (
+    !supervisor.includes("requestOrchestratorCorrection") ||
+    !supervisor.includes("ORCHESTRATOR_CORRECTION_REQUEST")
+  ) {
+    critical("ai_agent", "Phase 10: Supervisor must submit correction requests to orchestrator only");
+  } else {
+    pass("ai_agent", "Phase 10: Supervisor submits correction requests (pending approval)");
+  }
+
+  if (supervisor.includes("prisma.appointment.update")) {
+    critical("ai_agent", "Phase 10: Supervisor must not modify appointments directly");
+  } else {
+    pass("ai_agent", "Phase 10: Supervisor does not mutate clinical workflows directly");
+  }
+
+  if (supervisor.includes('agentType: "STAFF_ASSISTANT_AI"')) {
+    critical("ai_agent", "Phase 10: Supervisor must not impersonate other AI agents");
+  } else {
+    pass("ai_agent", "Phase 10: Supervisor does not interfere with other agents' roles");
+  }
+
+  if (supervisor.includes("orchestratorService.sendSms") || supervisor.includes("sendEmail")) {
+    critical("ai_agent", "Phase 10: Supervisor must not contact patients");
+  } else {
+    pass("ai_agent", "Phase 10: Supervisor does not send patient communications");
+  }
+
+  if (AGENT_DEFINITIONS.SUPERVISOR_AI?.forbiddenActions.includes("SEND_SMS")) {
+    pass("ai_agent", "Phase 10: SUPERVISOR_AI forbids SEND_SMS");
+  } else {
+    critical("ai_agent", "Phase 10: SUPERVISOR_AI must forbid patient SMS");
+  }
+
+  if (existsSync(path.join(process.cwd(), "src/lib/supervisor/governance.ts"))) {
+    pass("session", "Phase 10: governance boundary module present");
+  } else {
+    critical("session", "Phase 10: src/lib/supervisor/governance.ts missing");
+  }
+}
+
+function auditPhase9IntelligentSchedulingPlanning() {
+  const phase9Readme = readText("README-PHASE9.md");
+  if (
+    !/planning\s*\/\s*documentation only|planning only|not implemented|no live scheduling/i.test(
+      phase9Readme
+    )
+  ) {
+    critical("session", "Phase 9: README-PHASE9 must state planning-only (no live scheduling)");
+  } else {
+    pass("session", "Phase 9: documentation marked planning-only (not live scheduling)");
+  }
+
+  const roadmap = readText("docs/phase9/ROADMAP.md");
+  if (!roadmap.includes("Planning / documentation only")) {
+    critical("session", "Phase 9: ROADMAP must declare planning-only scope");
+  } else {
+    pass("session", "Phase 9: ROADMAP declares planning-only scope");
+  }
+
+  const requirements = readText("docs/phase9/REQUIREMENTS.md");
+  if (!requirements.includes("No live scheduling") && !requirements.includes("planning")) {
+    warn("session", "Phase 9: REQUIREMENTS should state no live scheduling");
+  } else {
+    pass("session", "Phase 9: REQUIREMENTS forbid live scheduling implementation");
+  }
+
+  const phase9Docs = [
+    "docs/phase9/ARCHITECTURE.md",
+    "docs/phase9/DATA-MODEL-PLAN.md",
+    "docs/phase9/GOVERNANCE.md",
+    "docs/phase9/SERVICE-INTERFACES.md",
+    "docs/phase9/WORKFLOWS.md",
+    "src/lib/scheduling/planning/provider-matching.service.ts",
+    "src/lib/scheduling/planning/availability-checking.service.ts",
+  ];
+  for (const f of phase9Docs) {
+    if (!existsSync(path.join(process.cwd(), f))) {
+      critical("session", `Phase 9: missing planning artifact ${f}`);
+    }
+  }
+  pass("session", "Phase 9: core planning docs and service interface stubs present");
+
+  const schema = readText("prisma/schema.prisma");
+  if (/\bmodel ProviderProfile\b/.test(schema)) {
+    critical(
+      "cross_session",
+      "Phase 9: ProviderProfile must not be migrated during planning-only phase"
+    );
+  } else {
+    pass("cross_session", "Phase 9: no ProviderProfile schema migration (planning-only)");
+  }
+
+  if (existsSync(path.join(process.cwd(), "src/services/scheduling"))) {
+    critical(
+      "action",
+      "Phase 9: src/services/scheduling must not exist until implementation phase"
+    );
+  } else {
+    pass("action", "Phase 9: no runtime scheduling services under src/services/scheduling");
+  }
+
+  const planningDir = path.join(process.cwd(), "src/lib/scheduling/planning");
+  for (const ent of readdirSync(planningDir)) {
+    const full = path.join(planningDir, ent);
+    if (!ent.endsWith(".ts")) continue;
+    const src = readFileSync(full, "utf8");
+    if (!src.includes("PLANNING ONLY")) {
+      critical("action", `Phase 9: ${ent} must declare PLANNING ONLY`);
+    }
+  }
+  pass("action", "Phase 9: planning TypeScript files marked PLANNING ONLY");
+
+  for (const stable of PHASE9_STABLE_SERVICE_MARKERS) {
+    const src = readText(stable);
+    if (src.includes("scheduling/planning") || src.includes("@/lib/scheduling/planning")) {
+      critical(
+        "action",
+        `Phase 9: ${stable} must not import planning stubs (Phase 1–8 unchanged)`
+      );
+    }
+  }
+  pass(
+    "action",
+    "Phase 9: Phase 1–8 core services do not import scheduling planning modules"
+  );
+
+  const governance = readText("docs/phase9/GOVERNANCE.md");
+  const coordination = readText("docs/phase9/COORDINATION.md");
+
+  if (
+    !governance.includes("not a clinician") &&
+    !governance.includes("not clinical")
+  ) {
+    critical("ai_agent", "Phase 9: GOVERNANCE must forbid clinical diagnosis/triage");
+  } else {
+    pass("ai_agent", "Phase 9: no live medical triage — governance forbids clinical advice");
+  }
+
+  if (
+    requirements.includes("live clinical triage") &&
+    !requirements.includes("not") &&
+    !requirements.includes("Not")
+  ) {
+    critical("ai_agent", "Phase 9: REQUIREMENTS must not mandate live medical triage");
+  } else {
+    pass("ai_agent", "Phase 9: REQUIREMENTS use safety routing only (not medical triage)");
+  }
+
+  if (!existsSync(path.join(process.cwd(), "src/services/scheduling/safety-triage.service.ts"))) {
+    pass("ai_agent", "Phase 9: no safety-triage.service runtime implementation");
+  } else {
+    critical("ai_agent", "Phase 9: safety-triage.service must not ship during planning phase");
+  }
+
+  if (
+    !coordination.includes("Master Orchestrator") ||
+    !coordination.includes("masterOrchestratorService")
+  ) {
+    critical(
+      "ai_agent",
+      "Phase 9: inbound scheduling planning must connect to Master Orchestrator"
+    );
+  } else {
+    pass("ai_agent", "Phase 9: inbound scheduling planning routes through Master Orchestrator");
+  }
+
+  const intelligent = readText(
+    "src/lib/scheduling/planning/intelligent-scheduling.service.ts"
+  );
+  if (
+    !intelligent.includes("Master Orchestrator") &&
+    !intelligent.includes("orchestrator")
+  ) {
+    critical("ai_agent", "Phase 9: intelligent-scheduling interface must reference orchestrator");
+  } else {
+    pass("ai_agent", "Phase 9: intelligent-scheduling facade defers to orchestrator");
+  }
+
+  if (
+    !coordination.includes("AgentAction") ||
+    !readText("docs/phase9/DATA-MODEL-PLAN.md").includes("AgentAction")
+  ) {
+    critical("ai_agent", "Phase 9: provider matching planning must connect to AgentAction proposals");
+  } else {
+    pass("ai_agent", "Phase 9: provider matching planned via AgentAction proposals");
+  }
+
+  const matching = readText("src/lib/scheduling/planning/provider-matching.service.ts");
+  if (matching.includes("prisma.") || matching.includes("createAuditLog")) {
+    critical("ai_agent", "Phase 9: provider-matching planning file must not write to DB");
+  } else {
+    pass("ai_agent", "Phase 9: provider-matching is interface-only (no direct persistence)");
+  }
+
+  const entityLinks: [string, string][] = [
+    ["Appointment", "Appointment"],
+    ["ClientTimelineEvent", "ClientTimelineEvent"],
+    ["AuditLog", "AuditLog"],
+    ["StaffIntervention", "StaffIntervention"],
+    ["Reminder", "reminder"],
+    ["n8n", "n8n"],
+  ];
+  for (const [label, needle] of entityLinks) {
+    if (!coordination.includes(needle)) {
+      critical("cross_session", `Phase 9: COORDINATION must link scheduling to ${label}`);
+    }
+  }
+  pass(
+    "cross_session",
+    "Phase 9: scheduling planning connects to Appointment, timeline, audit, intervention, reminders, n8n"
+  );
+
+  if (
+    !/staff override.*wins|staff override.*highest|staff override priority/i.test(
+      governance + phase9Readme
+    )
+  ) {
+    critical("ai_agent", "Phase 9: staff override must be highest-priority control");
+  } else {
+    pass("ai_agent", "Phase 9: staff override documented as highest priority");
+  }
+
+  const master = readText("src/services/master-orchestrator.service.ts");
+  if (!master.includes("staffOverride")) {
+    critical("ai_agent", "Master Orchestrator staffOverride required for Phase 9 governance");
+  } else {
+    pass("ai_agent", "Phase 9: Master Orchestrator staffOverride enforcement intact");
+  }
+
+  if (
+    !governance.includes("staff review") &&
+    !governance.includes("requiresStaffReview")
+  ) {
+    critical(
+      "ai_agent",
+      "Phase 9: high-risk appointments require staff review before finalize"
+    );
+  } else {
+    pass("ai_agent", "Phase 9: high-risk bookings require staff review (no AI-only finalize)");
+  }
+
+  if (
+    !governance.includes("auditable") &&
+    !coordination.includes("AuditLog")
+  ) {
+    critical("outcome", "Phase 9: scheduling decisions must be planned as auditable");
+  } else {
+    pass("outcome", "Phase 9: all scheduling decisions planned with AuditLog trail");
+  }
+
+  if (readText("docs/phase9/DATA-MODEL-PLAN.md").includes("SchedulingRecommendation")) {
+    pass("outcome", "Phase 9: SchedulingRecommendation artifact planned for slot audit trail");
+  } else {
+    critical("outcome", "Phase 9: DATA-MODEL-PLAN missing SchedulingRecommendation");
+  }
+
+  if (isMockModeForced()) {
+    pass("action", "Phase 9: MOCK_MODE default protects against live calls/SMS/email");
+  } else {
+    critical("action", "Phase 9: MOCK_MODE must default on — no live comms during planning");
+  }
+
+  const env = readText("src/lib/integrations/env.ts");
+  if (
+    !env.includes("isMockModeForced") ||
+    !env.includes("MOCK_MODE") ||
+    !env.includes("canUseLiveIntegrations")
+  ) {
+    critical("security", "Phase 9: integration env must gate MOCK_MODE");
+  } else {
+    pass("security", "Phase 9: MOCK_MODE integration gate unchanged and protected");
+  }
+
+  const intelligentScheduling = intelligent;
+  if (
+    intelligentScheduling.includes("twilio") ||
+    intelligentScheduling.includes("sendSms") ||
+    intelligentScheduling.includes("sendEmail")
+  ) {
+    critical(
+      "security",
+      "Phase 9: intelligent-scheduling planning must not invoke live comm providers"
+    );
+  } else {
+    pass("security", "Phase 9: planning interfaces do not enable real calls/SMS/email");
+  }
+
+  if (coordination.includes("Do not modify Phase 1–8") || roadmap.includes("must not break")) {
+    pass("session", "Phase 9: explicit preservation of Phase 1–8 stable workflows");
+  } else {
+    warn("session", "Phase 9: document Phase 1–8 preservation in ROADMAP/COORDINATION");
+  }
+}
+
 function auditSecurity() {
   const componentsDir = path.join(process.cwd(), "src/components");
   const secretPat = /process\.env\.(OPENAI|TWILIO|SENDGRID|WEBHOOK_SECRET|VAPI_|RETELL_)/;
@@ -579,6 +933,9 @@ function buildRecommendations(): string[] {
   if (!findings.some((f) => f.severity === "critical")) {
     recs.push("Coordination baseline is sound — add Organization scoping when multi-clinic ships.");
   }
+  recs.push(
+    "Phase 9 remains planning-only until migrations and src/services/scheduling/* are implemented."
+  );
   return recs;
 }
 
@@ -586,6 +943,8 @@ async function main() {
   console.log("\n=== MedFlow AI — Multi-Session Coordination Audit ===\n");
 
   auditSessionCoherence();
+  auditPhase9IntelligentSchedulingPlanning();
+  auditPhase10SupervisorLayer();
   auditCrossSessionChain();
   auditAiAgentCollaboration();
   auditActionConsistencyStatic();

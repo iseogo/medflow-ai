@@ -37,6 +37,8 @@ flowchart LR
 
 ### Master Orchestrator
 
+All inbound scheduling mutations call `masterOrchestratorService.submitProposal` / `reviewProposal` — never direct Prisma writes from voice or matching layers.
+
 | Aspect | Rule |
 |--------|------|
 | Entry | All scheduling mutations are `AgentAction` proposals |

@@ -27,6 +27,12 @@ export const API_RBAC_RULES: ApiRule[] = [
   { prefix: "/api/reminders", permissions: ["reminders:read", "reminders:write"], any: true },
   { prefix: "/api/integrations/status", permissions: ["settings:read"] },
   { prefix: "/api/agents/definitions", permissions: ["orchestrator:read"] },
+  { prefix: "/api/supervisor", permissions: ["supervisor:read", "supervisor:run"], any: true },
+  {
+    prefix: "/api/notifications",
+    permissions: ["notifications:read", "notifications:write"],
+    any: true,
+  },
 ];
 
 const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
@@ -35,6 +41,8 @@ const WRITE_PERMISSION_OVERRIDES: Record<string, Permission> = {
   "/api/clients": "clients:write",
   "/api/appointments": "appointments:write",
   "/api/reminders/run": "reminders:write",
+  "/api/supervisor/run": "supervisor:run",
+  "/api/notifications": "notifications:write",
 };
 
 export function isPublicApiPath(pathname: string): boolean {

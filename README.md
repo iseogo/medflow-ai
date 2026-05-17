@@ -1,6 +1,6 @@
 # MedFlow AI
 
-Production-oriented healthcare operations app spanning **Phases 1–8** (implemented) with **Phase 9** architecture planning for inbound AI scheduling. Historical phase notes below; see **README-PHASE2.md** through **README-PHASE9.md** for detail.
+Production-oriented healthcare operations app spanning **Phases 1–10**: core platform through Supervisor AI quality control, with **Phase 9** inbound scheduling in planning-only mode. Historical phase notes below; see **README-PHASE2.md** through **README-PHASE10.md** for detail.
 
 **Still future:** live scheduling engine (Phase 9 build), production cron at scale, insurance, and medical records APIs.
 
@@ -219,7 +219,10 @@ Session required on all routes except `/api/health` and `/api/auth/*`. Permissio
 | `npm run audit:integrations` | Phase 6 mock-mode and provider configuration audit |
 | `npm run audit:architecture` | Deep cross-phase architecture audit (coherence, coordination, compatibility, scalability, security) |
 | `npm run audit:coordination` | Multi-session / multi-agent coordination audit (chain, AI orchestrator, outcomes) |
+| `npm run audit:global-coordination` | Full-system global coordination audit (phases 1–10, chain, AI, notifications, consistency) |
 | `npm run audit:security` | Phase 8 HIPAA-conscious security controls audit |
+| `npm run audit:supervisor` | Phase 10 Supervisor AI / quality control audit |
+| `npm run audit:notifications` | Phase 11 staff in-app notifications audit |
 | `npm run audit:staff-rbac` | Staff accounts and RBAC matrix audit |
 
 ## Security notes
@@ -272,6 +275,14 @@ npm run audit:production
 npm run audit:system-coherence
 npm run audit:integrations
 npm run audit:staff-rbac
+```
+
+## Phase 10
+
+**Supervisor AI** — oversight layer above Master Orchestrator: monitors agents, orchestrator, reminders, and coordination; creates `AdminAlert` / incidents; never contacts patients. See **[README-PHASE10.md](./README-PHASE10.md)**.
+
+```bash
+npm run audit:supervisor
 ```
 
 ## Phase 9 (planning only)

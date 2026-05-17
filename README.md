@@ -223,6 +223,7 @@ Session required on all routes except `/api/health` and `/api/auth/*`. Permissio
 | `npm run audit:security` | Phase 8 HIPAA-conscious security controls audit |
 | `npm run audit:supervisor` | Phase 10 Supervisor AI / quality control audit |
 | `npm run audit:notifications` | Phase 11 staff in-app notifications audit |
+| `npm run audit:reliability` | Phase 11/12 reliability guards audit |
 | `npm run audit:staff-rbac` | Staff accounts and RBAC matrix audit |
 
 ## Security notes

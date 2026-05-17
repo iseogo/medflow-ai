@@ -18,6 +18,8 @@ import {
   AiAutomationBlockedError,
   assertAiAutomationAllowed,
 } from "@/lib/ai-automation-guard";
+import { assertNoConflictingPendingActions } from "@/lib/reliability/ai-action-conflict";
+import { logDuplicateProposalPrevented } from "@/lib/reliability/proposal-guard";
 import { assertNoDuplicateProposal, DuplicateProposalError } from "@/lib/proposal-dedup";
 import { prisma } from "@/lib/prisma";
 import { notifyStaff } from "@/lib/notifications/notification-bridge";
@@ -179,6 +181,15 @@ export const masterOrchestratorService = {
       );
     }
 
+    await assertNoConflictingPendingActions({
+      clientId: input.clientId,
+      appointmentId: input.appointmentId,
+      channel: input.channel,
+      purpose: input.purpose,
+      agentType: input.agentType,
+      actionType: input.actionType,
+    });
+
     try {
       await assertNoDuplicateProposal({
         clientId: input.clientId,
@@ -190,6 +201,18 @@ export const masterOrchestratorService = {
       });
     } catch (e) {
       if (e instanceof DuplicateProposalError) {
+        await logDuplicateProposalPrevented({
+          key: {
+            clientId: input.clientId,
+            appointmentId: input.appointmentId,
+            channel: input.channel,
+            purpose: input.purpose,
+            agentType: input.agentType,
+            actionType: input.actionType,
+          },
+          existingId: e.existingId,
+          userId: ctx.userId,
+        });
         await notifyStaff({
           channel: "orchestrator",
           source: "DUPLICATE_ACTION_PREVENTED",

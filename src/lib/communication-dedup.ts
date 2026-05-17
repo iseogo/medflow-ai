@@ -1,5 +1,6 @@
-import { CommunicationChannel } from "@prisma/client";
+import { CommunicationChannel, CommunicationStatus } from "@prisma/client";
 import { prisma } from "./prisma";
+import { COMMUNICATION_IDEMPOTENCY_WINDOW_MINUTES } from "./reliability/constants";
 
 export type CommunicationDedupKey = {
   clientId: string;
@@ -20,12 +21,37 @@ export class DuplicateCommunicationError extends Error {
   }
 }
 
+function timeWindowStart(): Date {
+  const since = new Date();
+  since.setMinutes(since.getMinutes() - COMMUNICATION_IDEMPOTENCY_WINDOW_MINUTES);
+  return since;
+}
+
+function timeWindowBucket(): string {
+  const ms = COMMUNICATION_IDEMPOTENCY_WINDOW_MINUTES * 60_000;
+  return String(Math.floor(Date.now() / ms));
+}
+
+/** Stable idempotency key: client + appointment + channel + purpose + time window. */
+export function buildCommunicationIdempotencyKey(key: CommunicationDedupKey): string {
+  return [
+    key.clientId,
+    key.appointmentId ?? "none",
+    key.channel,
+    key.purpose,
+    timeWindowBucket(),
+  ].join(":");
+}
+
 function dedupWhere(key: CommunicationDedupKey) {
+  const since = timeWindowStart();
   return {
     clientId: key.clientId,
     purpose: key.purpose,
     channel: key.channel,
     appointmentId: key.appointmentId ?? null,
+    createdAt: { gte: since },
+    status: { notIn: ["FAILED", "BOUNCED"] as CommunicationStatus[] },
   };
 }
 
@@ -58,8 +84,16 @@ export async function assertNoDuplicateCommunication(
 export async function findDuplicateAgentAction(
   key: CommunicationDedupKey
 ): Promise<{ id: string } | null> {
+  const since = timeWindowStart();
   return prisma.agentAction.findFirst({
-    where: dedupWhere(key),
+    where: {
+      clientId: key.clientId,
+      purpose: key.purpose,
+      channel: key.channel,
+      appointmentId: key.appointmentId ?? null,
+      createdAt: { gte: since },
+      proposalStatus: { in: ["PENDING_APPROVAL", "APPROVED", "ESCALATED", "EXECUTED"] },
+    },
     select: { id: true },
   });
 }

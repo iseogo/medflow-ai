@@ -20,6 +20,7 @@ import { notifyStaff } from "@/lib/notifications/notification-bridge";
 import { notificationService } from "./notification.service";
 import { coordinationMonitorService } from "./coordination-monitor.service";
 import { masterOrchestratorService } from "./master-orchestrator.service";
+import { reliabilityService } from "./reliability.service";
 import { workflowHealthService } from "./workflow-health.service";
 
 export type SupervisorScanResult = {
@@ -289,6 +290,8 @@ export const supervisorAgentService = {
 
     await coordinationMonitorService.aggregateAgentMetrics(24);
 
+    const reliabilityScan = await reliabilityService.runStuckWorkflowScan(actorUserId);
+
     const audit = await createAuditLog({
       action: "SUPERVISOR_SCAN",
       entityType: "SupervisorScan",
@@ -303,6 +306,8 @@ export const supervisorAgentService = {
         recommendationsCreated,
         staffInterventionsCreated,
         orchestratorReviewRequestsSubmitted,
+        reliabilityStuckEscalated: reliabilityScan.escalated,
+        reliabilityFindings: reliabilityScan.findingsCount,
         mockMode: isMockModeForced(),
         orchestratorAuthority: "Master Orchestrator — Supervisor has no authority over orchestrator",
       }),

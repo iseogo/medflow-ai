@@ -3,10 +3,8 @@ import {
   CommunicationChannel,
   CommunicationStatus,
 } from "@prisma/client";
-import {
-  assertNoDuplicateCommunication,
-  DuplicateCommunicationError,
-} from "@/lib/communication-dedup";
+import { DuplicateCommunicationError } from "@/lib/communication-dedup";
+import { assertOutboundCommunicationAllowed } from "@/lib/reliability/communication-idempotency";
 import { recordCommunicationTimelineAndAudit } from "@/lib/communication-log";
 import { notifyStaff } from "@/lib/notifications/notification-bridge";
 import { prisma } from "@/lib/prisma";
@@ -105,28 +103,15 @@ export const orchestratorService = {
   async sendCall(input: SendCallInput, ctx: OrchestratorContext = {}) {
     assertCommunicationAuthorized(ctx);
     await validateAppointment(input.clientId, input.appointmentId);
-    try {
-      await assertNoDuplicateCommunication({
+    await assertOutboundCommunicationAllowed(
+      {
         clientId: input.clientId,
         appointmentId: input.appointmentId,
         channel: "CALL",
         purpose: input.purpose,
-      });
-    } catch (e) {
-      if (e instanceof DuplicateCommunicationError) {
-        await notifyStaff({
-          channel: "orchestrator",
-          source: "DUPLICATE_ACTION_PREVENTED",
-          sourceKey: `duplicate-call:${input.clientId}:${input.purpose}`,
-          title: "Duplicate call prevented",
-          message: "A call with the same purpose is already in progress for this client.",
-          clientId: input.clientId,
-          appointmentId: input.appointmentId ?? undefined,
-          createdByUserId: ctx.userId,
-        });
-      }
-      throw e;
-    }
+      },
+      { userId: ctx.userId }
+    );
 
     const phone = input.phoneNumber ?? (await resolveClientPhone(input.clientId));
 
@@ -221,12 +206,15 @@ export const orchestratorService = {
   async sendSms(input: SendSmsInput, ctx: OrchestratorContext = {}) {
     assertCommunicationAuthorized(ctx);
     await validateAppointment(input.clientId, input.appointmentId);
-    await assertNoDuplicateCommunication({
-      clientId: input.clientId,
-      appointmentId: input.appointmentId,
-      channel: "SMS",
-      purpose: input.purpose,
-    });
+    await assertOutboundCommunicationAllowed(
+      {
+        clientId: input.clientId,
+        appointmentId: input.appointmentId,
+        channel: "SMS",
+        purpose: input.purpose,
+      },
+      { userId: ctx.userId }
+    );
 
     const to = input.toNumber ?? (await resolveClientPhone(input.clientId));
 
@@ -280,12 +268,15 @@ export const orchestratorService = {
   async sendEmail(input: SendEmailInput, ctx: OrchestratorContext = {}) {
     assertCommunicationAuthorized(ctx);
     await validateAppointment(input.clientId, input.appointmentId);
-    await assertNoDuplicateCommunication({
-      clientId: input.clientId,
-      appointmentId: input.appointmentId,
-      channel: "EMAIL",
-      purpose: input.purpose,
-    });
+    await assertOutboundCommunicationAllowed(
+      {
+        clientId: input.clientId,
+        appointmentId: input.appointmentId,
+        channel: "EMAIL",
+        purpose: input.purpose,
+      },
+      { userId: ctx.userId }
+    );
 
     const to = input.toEmail ?? (await resolveClientEmail(input.clientId));
 

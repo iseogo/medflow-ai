@@ -9,10 +9,9 @@ import {
   AiAutomationBlockedError,
   assertAiAutomationAllowed,
 } from "@/lib/ai-automation-guard";
-import {
-  assertNoDuplicateCommunication,
-  DuplicateCommunicationError,
-} from "@/lib/communication-dedup";
+import { DuplicateCommunicationError } from "@/lib/communication-dedup";
+import { assertOutboundCommunicationAllowed } from "@/lib/reliability/communication-idempotency";
+import { workflowGuard } from "@/lib/reliability/workflow-guard";
 import { recordCommunicationTimelineAndAudit } from "@/lib/communication-log";
 import { prisma } from "@/lib/prisma";
 import type { ReminderOutcome, ReminderScheduleOffset } from "@/lib/reminder-types";
@@ -144,6 +143,7 @@ export class ReminderEngineError extends Error {
       | "INVALID_STATUS"
       | "DUPLICATE_CYCLE"
       | "NO_CONSENT"
+      | "WORKFLOW_FAILED"
   ) {
     super(message);
     this.name = "ReminderEngineError";
@@ -358,6 +358,20 @@ export const reminderEngineService = {
       );
     }
 
+    const workflowKey = `reminder:${appointmentId}:${offset}`;
+    if (!(await workflowGuard.shouldRetry(workflowKey))) {
+      throw new ReminderEngineError(
+        "Reminder workflow retries exhausted",
+        "WORKFLOW_FAILED"
+      );
+    }
+    await workflowGuard.recordAttempt({
+      workflowKey,
+      message: `Reminder cycle ${offset}`,
+      clientId: appointment.clientId,
+      appointmentId,
+    });
+
     if (!ACTIVE_APPT_STATUSES.includes(appointment.status)) {
       throw new ReminderEngineError(
         `Appointment status ${appointment.status} not eligible for reminders`,
@@ -413,12 +427,15 @@ export const reminderEngineService = {
     if (phoneOk) {
       const voicePurpose = purposeVoice(appointmentId, offset);
       try {
-        await assertNoDuplicateCommunication({
-          clientId: appointment.clientId,
-          appointmentId,
-          channel: "CALL",
-          purpose: voicePurpose,
-        });
+        await assertOutboundCommunicationAllowed(
+          {
+            clientId: appointment.clientId,
+            appointmentId,
+            channel: "CALL",
+            purpose: voicePurpose,
+          },
+          { userId }
+        );
       } catch (e) {
         if (e instanceof DuplicateCommunicationError) {
           throw new ReminderEngineError(
@@ -648,6 +665,7 @@ export const reminderEngineService = {
       });
     }
 
+    await workflowGuard.markSuccess(workflowKey);
     return reminderLog;
   },
 

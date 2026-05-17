@@ -4,6 +4,10 @@ import { z } from "zod";
 import { createAuditLog } from "@/lib/audit";
 import { requirePermission } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import {
+  AppointmentOverlapError,
+  guardAppointmentBooking,
+} from "@/lib/reliability/appointment-booking";
 import { applyStaffOverride } from "@/lib/staff-override";
 import { addTimelineEvent } from "@/lib/timeline";
 
@@ -54,11 +58,33 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const scheduledAt = new Date(parsed.data.scheduledAt);
+  const durationMinutes = parsed.data.durationMinutes ?? 30;
+
+  try {
+    await guardAppointmentBooking({
+      clientId: parsed.data.clientId,
+      scheduledAt,
+      durationMinutes,
+      providerName: parsed.data.providerName,
+      staffOverride: parsed.data.staffOverride,
+      actorUserId: user!.id,
+    });
+  } catch (e) {
+    if (e instanceof AppointmentOverlapError) {
+      return NextResponse.json(
+        { error: e.message, code: e.code, conflictingAppointmentId: e.conflictingAppointmentId },
+        { status: 409 }
+      );
+    }
+    throw e;
+  }
+
   const appointment = await prisma.appointment.create({
     data: {
       clientId: parsed.data.clientId,
-      scheduledAt: new Date(parsed.data.scheduledAt),
-      durationMinutes: parsed.data.durationMinutes ?? 30,
+      scheduledAt,
+      durationMinutes,
       status: parsed.data.status ?? "SCHEDULED",
       reason: parsed.data.reason,
       providerName: parsed.data.providerName,

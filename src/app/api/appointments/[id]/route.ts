@@ -11,6 +11,10 @@ import {
   staffOverrideOwnershipFields,
 } from "@/lib/staff-override";
 import { getRequestMeta } from "@/lib/request-meta";
+import {
+  AppointmentOverlapError,
+  guardAppointmentBooking,
+} from "@/lib/reliability/appointment-booking";
 import { notifyStaff } from "@/lib/notifications/notification-bridge";
 import { addTimelineEvent } from "@/lib/timeline";
 
@@ -67,6 +71,40 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   const { scheduledAt, ...rest } = parsed.data;
   const actor = actorFromSession(user!);
   const meta = getRequestMeta(request);
+
+  const nextScheduledAt = scheduledAt ? new Date(scheduledAt) : existing.scheduledAt;
+  const nextDuration = parsed.data.durationMinutes ?? existing.durationMinutes;
+  const nextProvider =
+    parsed.data.providerName !== undefined
+      ? parsed.data.providerName
+      : existing.providerName;
+
+  if (scheduledAt || parsed.data.durationMinutes || parsed.data.providerName !== undefined) {
+    try {
+      await guardAppointmentBooking({
+        clientId: existing.clientId,
+        scheduledAt: nextScheduledAt,
+        durationMinutes: nextDuration,
+        providerName: nextProvider,
+        excludeAppointmentId: params.id,
+        staffOverride: parsed.data.staffOverride ?? existing.staffOverride,
+        actorUserId: user!.id,
+      });
+    } catch (e) {
+      if (e instanceof AppointmentOverlapError) {
+        return NextResponse.json(
+          {
+            error: e.message,
+            code: e.code,
+            conflictingAppointmentId: e.conflictingAppointmentId,
+          },
+          { status: 409 }
+        );
+      }
+      throw e;
+    }
+  }
+
   const appointment = await prisma.appointment.update({
     where: { id: params.id },
     data: {

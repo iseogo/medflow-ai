@@ -21,7 +21,7 @@ import { NOTIFICATION_SOURCE_DEFAULTS } from "@/lib/notifications/notification-s
 import { prisma } from "@/lib/prisma";
 import { sanitizeMetadataForAudit } from "@/lib/security/phi-safe-log";
 import { addTimelineEvent } from "@/lib/timeline";
-import { applyStaffOverride, STAFF_OVERRIDE_DEFAULTS } from "@/lib/staff-override";
+import { applyStaffOverride } from "@/lib/staff-override";
 
 const DEDUP_HOURS = 24;
 

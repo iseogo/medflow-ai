@@ -16,6 +16,7 @@ import { ESCALATION_RULES } from "@/lib/supervisor/rules";
 import { addTimelineEvent } from "@/lib/timeline";
 import { prisma } from "@/lib/prisma";
 import { adminAlertService } from "./admin-alert.service";
+import { notifyStaff } from "@/lib/notifications/notification-bridge";
 import { notificationService } from "./notification.service";
 import { coordinationMonitorService } from "./coordination-monitor.service";
 import { masterOrchestratorService } from "./master-orchestrator.service";
@@ -129,7 +130,12 @@ export const supervisorAgentService = {
       alertsCreated += 1;
 
       await notificationService.emit({
-        source: "SUPERVISOR_WARNING",
+        source:
+          f.incidentType === "DUPLICATE_ACTION"
+            ? "DUPLICATE_ACTION_PREVENTED"
+            : f.incidentType === "STAFF_OVERRIDE_VIOLATION"
+              ? "AUDIT_SECURITY_WARNING"
+              : "SUPERVISOR_WARNING",
         sourceKey: `supervisor-warning:${incident.id}`,
         title: f.title,
         message: f.description,
@@ -217,7 +223,7 @@ export const supervisorAgentService = {
     }
 
     for (const w of stuckWorkflows) {
-      await adminAlertService.create({
+      const alert = await adminAlertService.create({
         severity: "WARNING",
         code: "STUCK_WORKFLOW",
         title: "Stuck workflow",
@@ -228,6 +234,19 @@ export const supervisorAgentService = {
         actorUserId,
       });
       alertsCreated += 1;
+      await notifyStaff({
+        channel: "supervisor",
+        source: "WORKFLOW_STUCK",
+        sourceKey: w.workflowKey,
+        title: "Workflow stuck",
+        message: w.message,
+        clientId: w.clientId,
+        appointmentId: w.appointmentId,
+        agentActionId: w.agentActionId,
+        adminAlertId: alert.id,
+        workflowKey: w.workflowKey,
+        createdByUserId: actorUserId,
+      });
     }
 
     for (const r of reminderIssues) {

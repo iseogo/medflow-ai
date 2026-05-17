@@ -2,30 +2,10 @@
 
 import { Bell } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useNotificationUnreadCount } from "@/hooks/use-notification-unread-count";
 
-export function NotificationBell() {
-  const [count, setCount] = useState(0);
-
-  useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const res = await fetch("/api/notifications/unread-count");
-        if (!res.ok) return;
-        const data = (await res.json()) as { count: number };
-        if (!cancelled) setCount(data.count ?? 0);
-      } catch {
-        /* ignore */
-      }
-    }
-    load();
-    const interval = setInterval(load, 60_000);
-    return () => {
-      cancelled = true;
-      clearInterval(interval);
-    };
-  }, []);
+export function NotificationBell({ enabled = true }: { enabled?: boolean }) {
+  const count = useNotificationUnreadCount(enabled);
 
   return (
     <Link

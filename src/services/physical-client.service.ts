@@ -16,7 +16,12 @@ import {
 } from "@/lib/physical-events";
 import type { StaffOverrideActor } from "@/lib/staff-override";
 import type { RequestMeta } from "@/lib/api-auth";
-import { notificationService } from "@/services/notification.service";
+import {
+  notifyStaff,
+  sourceForWaitingRoomState,
+  titleForWaitingRoomState,
+  WAITING_ROOM_DELAY_MINUTES,
+} from "@/lib/notifications/notification-bridge";
 
 export type CommunicationPreferencesInput = {
   voice?: boolean;
@@ -302,7 +307,8 @@ export const physicalClientService = {
       appointmentId: result.appointment.id,
     });
 
-    await notificationService.emit({
+    await notifyStaff({
+      channel: "staff",
       source: "WALK_IN_ARRIVED",
       sourceKey: `walk-in:${result.walkIn.id}`,
       title: "Walk-in arrived",
@@ -310,7 +316,18 @@ export const physicalClientService = {
       clientId: result.client.id,
       appointmentId: result.appointment.id,
       createdByUserId: actor.userId,
-      actorChannel: "staff",
+    });
+
+    await notifyStaff({
+      channel: "staff",
+      source: "CHECK_IN_COMPLETED",
+      sourceKey: `check-in:${result.checkIn.id}`,
+      title: "Check-in completed",
+      message: `Walk-in check-in completed for ${result.client.firstName} ${result.client.lastName}.`,
+      clientId: result.client.id,
+      appointmentId: result.appointment.id,
+      metadata: { physicalCheckInId: result.checkIn.id, walkInVisitId: result.walkIn.id },
+      createdByUserId: actor.userId,
     });
 
     await recordPhysicalEvent({
@@ -506,6 +523,18 @@ export const physicalClientService = {
       appointmentId: result.appointment?.id,
     });
 
+    await notifyStaff({
+      channel: "staff",
+      source: "CHECK_IN_COMPLETED",
+      sourceKey: `check-in:${result.checkIn.id}`,
+      title: "Check-in completed",
+      message: `${client.firstName} ${client.lastName} checked in.`,
+      clientId: client.id,
+      appointmentId: result.appointment?.id,
+      metadata: { physicalCheckInId: result.checkIn.id },
+      createdByUserId: actor.userId,
+    });
+
     await recordPhysicalEvent({
       ctx,
       timelineType: "WAITING_ROOM_ARRIVED",
@@ -627,6 +656,39 @@ export const physicalClientService = {
       orchestratorDescription: `Waiting room status updated to ${state}`,
       appointmentId: existing.appointmentId,
     });
+
+    const wrSource = sourceForWaitingRoomState(state);
+    if (wrSource) {
+      await notifyStaff({
+        channel: "staff",
+        source: wrSource,
+        sourceKey: `waiting-room:${waitingRoomId}:${state}`,
+        title: titleForWaitingRoomState(state),
+        message: `Wait time: ${waitDurationMinutes} minutes.`,
+        clientId: existing.clientId,
+        appointmentId: existing.appointmentId ?? undefined,
+        metadata: { waitingRoomId, waitDurationMinutes },
+        createdByUserId: staff.id,
+      });
+    }
+
+    if (
+      waitDurationMinutes >= WAITING_ROOM_DELAY_MINUTES &&
+      (state === "WAITING" || state === "CALLED")
+    ) {
+      await notifyStaff({
+        channel: "staff",
+        source: "WAITING_ROOM_DELAY",
+        sourceKey: `waiting-room-delay:${waitingRoomId}`,
+        title: "Waiting room delay",
+        message: `Patient waiting ${waitDurationMinutes} minutes (threshold ${WAITING_ROOM_DELAY_MINUTES} min).`,
+        clientId: existing.clientId,
+        appointmentId: existing.appointmentId ?? undefined,
+        metadata: { waitingRoomId, waitDurationMinutes },
+        createdByUserId: staff.id,
+        priority: "HIGH",
+      });
+    }
 
     return updated;
   },

@@ -20,6 +20,7 @@ import {
 } from "@/lib/ai-automation-guard";
 import { assertNoDuplicateProposal, DuplicateProposalError } from "@/lib/proposal-dedup";
 import { prisma } from "@/lib/prisma";
+import { notifyStaff } from "@/lib/notifications/notification-bridge";
 import { addTimelineEvent } from "@/lib/timeline";
 import { orchestratorService } from "./orchestrator.service";
 
@@ -128,6 +129,16 @@ export const masterOrchestratorService = {
     });
     if (!safety.ok) {
       if (safety.escalate) {
+        await notifyStaff({
+          channel: "orchestrator",
+          source: "AI_LOW_CONFIDENCE",
+          sourceKey: `ai-low-confidence:${input.clientId}:${input.purpose}:${Date.now()}`,
+          title: "AI proposal needs review",
+          message: safety.message,
+          clientId: input.clientId,
+          appointmentId: input.appointmentId ?? undefined,
+          createdByUserId: ctx.userId,
+        });
         return this.handleEmergency({
           clientId: input.clientId,
           appointmentId: input.appointmentId,
@@ -168,14 +179,32 @@ export const masterOrchestratorService = {
       );
     }
 
-    await assertNoDuplicateProposal({
-      clientId: input.clientId,
-      appointmentId: input.appointmentId,
-      channel: input.channel,
-      purpose: input.purpose,
-      agentType: input.agentType,
-      actionType: input.actionType,
-    });
+    try {
+      await assertNoDuplicateProposal({
+        clientId: input.clientId,
+        appointmentId: input.appointmentId,
+        channel: input.channel,
+        purpose: input.purpose,
+        agentType: input.agentType,
+        actionType: input.actionType,
+      });
+    } catch (e) {
+      if (e instanceof DuplicateProposalError) {
+        await notifyStaff({
+          channel: "orchestrator",
+          source: "DUPLICATE_ACTION_PREVENTED",
+          sourceKey: `duplicate-proposal:${e.existingId}`,
+          title: "Duplicate AI proposal prevented",
+          message:
+            "A pending proposal already exists for this client, channel, and action.",
+          clientId: input.clientId,
+          appointmentId: input.appointmentId ?? undefined,
+          agentActionId: e.existingId,
+          createdByUserId: ctx.userId,
+        });
+      }
+      throw e;
+    }
 
     const defn = getAgentDefinition(input.agentType);
 
@@ -378,7 +407,7 @@ export const masterOrchestratorService = {
     }
 
     if (decision === "ESCALATE") {
-      await prisma.staffIntervention.create({
+      const intervention = await prisma.staffIntervention.create({
         data: {
           clientId: updated.clientId,
           status: "STAFF_REVIEW_REQUIRED",
@@ -387,6 +416,19 @@ export const masterOrchestratorService = {
           assignedToId: options.userId,
           staffOverride: true,
         },
+      });
+      await notifyStaff({
+        channel: "orchestrator",
+        source: "ORCHESTRATOR_ESCALATION",
+        sourceKey: `orchestrator-escalation:${proposalId}`,
+        title: `AI escalation: ${updated.actionType}`,
+        message: updated.description ?? "AI proposal escalated for staff review.",
+        clientId: updated.clientId,
+        appointmentId: updated.appointmentId ?? undefined,
+        agentActionId: proposalId,
+        workflowKey: intervention.id,
+        createdByUserId: options.userId,
+        assignedUserId: options.userId,
       });
     }
 
@@ -628,6 +670,19 @@ export const masterOrchestratorService = {
         staffTaskId: urgentTask.id,
         ...emergencyEscalationGuardrails(input.matchedTerms),
       },
+    });
+
+    await notifyStaff({
+      channel: "orchestrator",
+      source: "EMERGENCY_RISK_DETECTED",
+      sourceKey: `emergency:${proposal.id}`,
+      title: "Emergency risk detected",
+      message: input.description ?? "Emergency language detected — automation halted.",
+      clientId: input.clientId,
+      appointmentId: input.appointmentId ?? undefined,
+      agentActionId: proposal.id,
+      staffTaskId: urgentTask.id,
+      createdByUserId: adminUser.id,
     });
 
     return proposal;

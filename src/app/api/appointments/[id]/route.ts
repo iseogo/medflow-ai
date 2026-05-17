@@ -11,6 +11,7 @@ import {
   staffOverrideOwnershipFields,
 } from "@/lib/staff-override";
 import { getRequestMeta } from "@/lib/request-meta";
+import { notifyStaff } from "@/lib/notifications/notification-bridge";
 import { addTimelineEvent } from "@/lib/timeline";
 
 const updateSchema = z.object({
@@ -107,6 +108,43 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     },
     actorUserId: user!.id,
   });
+
+  if (statusChanged && parsed.data.status === "COMPLETED") {
+    await notifyStaff({
+      channel: "staff",
+      source: "APPOINTMENT_COMPLETED",
+      sourceKey: `appointment-completed:${appointment.id}`,
+      title: "Appointment completed",
+      message: `Appointment marked completed for ${appointment.client.firstName} ${appointment.client.lastName}.`,
+      clientId: appointment.clientId,
+      appointmentId: appointment.id,
+      createdByUserId: user!.id,
+    });
+  }
+  if (statusChanged && parsed.data.status === "NO_SHOW") {
+    await notifyStaff({
+      channel: "staff",
+      source: "PATIENT_NO_SHOW",
+      sourceKey: `appointment-no-show:${appointment.id}`,
+      title: "Patient no-show",
+      message: "Appointment marked no-show.",
+      clientId: appointment.clientId,
+      appointmentId: appointment.id,
+      createdByUserId: user!.id,
+    });
+  }
+  if (parsed.data.reminderAutomationPaused && !existing.reminderAutomationPaused) {
+    await notifyStaff({
+      channel: "staff",
+      source: "STAFF_OVERRIDE_ACTIVATED",
+      sourceKey: `appointment-automation-paused:${appointment.id}`,
+      title: "Reminder automation paused",
+      message: "Staff paused reminder automation for this appointment.",
+      clientId: appointment.clientId,
+      appointmentId: appointment.id,
+      createdByUserId: user!.id,
+    });
+  }
 
   await createAuditLog({
     action: statusChanged ? "STATUS_CHANGE" : "UPDATE",

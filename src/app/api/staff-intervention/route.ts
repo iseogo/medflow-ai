@@ -11,6 +11,7 @@ import {
   staffOverrideOwnershipFields,
   STAFF_OVERRIDE_DEFAULTS,
 } from "@/lib/staff-override";
+import { notifyStaff } from "@/lib/notifications/notification-bridge";
 import { addTimelineEvent } from "@/lib/timeline";
 
 const createSchema = z.object({
@@ -84,6 +85,18 @@ export async function POST(request: NextRequest) {
       client: true,
       assignedTo: { select: { id: true, firstName: true, lastName: true } },
     },
+  });
+
+  await notifyStaff({
+    channel: "staff",
+    source: "STAFF_INTERVENTION_REQUIRED",
+    sourceKey: `staff-intervention:${intervention.id}`,
+    title: intervention.title,
+    message: intervention.description ?? "Staff intervention opened.",
+    clientId: intervention.clientId ?? undefined,
+    workflowKey: intervention.id,
+    createdByUserId: user!.id,
+    assignedUserId: intervention.assignedToId ?? undefined,
   });
 
   if (intervention.clientId) {

@@ -1,4 +1,5 @@
 import { RoleType } from "@prisma/client";
+import { notifyStaff } from "@/lib/notifications/notification-bridge";
 import { createAuditLog } from "./audit";
 import { prisma } from "./prisma";
 
@@ -65,6 +66,21 @@ export async function recordStaffOverride(input: {
     userAgent: input.userAgent,
     metadata: { reason: input.actor.reason },
   });
+
+  if (input.targetType === "Appointment") {
+    await notifyStaff({
+      channel: "staff",
+      source: "STAFF_OVERRIDE_ACTIVATED",
+      sourceKey: `staff-override:${input.targetType}:${input.targetId}`,
+      title: "Staff override activated",
+      message: input.actor.reason ?? "Staff paused automation on appointment.",
+      clientId: input.clientId,
+      appointmentId: input.targetId,
+      workflowKey: input.targetId,
+      createdByUserId: input.actor.userId,
+      assignedUserId: input.actor.userId,
+    }).catch(() => undefined);
+  }
 }
 
 export function actorFromSession(user: {

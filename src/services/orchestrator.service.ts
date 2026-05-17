@@ -8,6 +8,7 @@ import {
   DuplicateCommunicationError,
 } from "@/lib/communication-dedup";
 import { recordCommunicationTimelineAndAudit } from "@/lib/communication-log";
+import { notifyStaff } from "@/lib/notifications/notification-bridge";
 import { prisma } from "@/lib/prisma";
 import { emailService } from "./email.service";
 import { n8nService } from "./n8n.service";
@@ -104,12 +105,28 @@ export const orchestratorService = {
   async sendCall(input: SendCallInput, ctx: OrchestratorContext = {}) {
     assertCommunicationAuthorized(ctx);
     await validateAppointment(input.clientId, input.appointmentId);
-    await assertNoDuplicateCommunication({
-      clientId: input.clientId,
-      appointmentId: input.appointmentId,
-      channel: "CALL",
-      purpose: input.purpose,
-    });
+    try {
+      await assertNoDuplicateCommunication({
+        clientId: input.clientId,
+        appointmentId: input.appointmentId,
+        channel: "CALL",
+        purpose: input.purpose,
+      });
+    } catch (e) {
+      if (e instanceof DuplicateCommunicationError) {
+        await notifyStaff({
+          channel: "orchestrator",
+          source: "DUPLICATE_ACTION_PREVENTED",
+          sourceKey: `duplicate-call:${input.clientId}:${input.purpose}`,
+          title: "Duplicate call prevented",
+          message: "A call with the same purpose is already in progress for this client.",
+          clientId: input.clientId,
+          appointmentId: input.appointmentId ?? undefined,
+          createdByUserId: ctx.userId,
+        });
+      }
+      throw e;
+    }
 
     const phone = input.phoneNumber ?? (await resolveClientPhone(input.clientId));
 
@@ -169,6 +186,34 @@ export const orchestratorService = {
       appointmentId: input.appointmentId,
       metadata: { direction: input.direction, externalRef: stub.externalRef },
     });
+
+    if (updated.status === "FAILED" && input.direction === "OUTBOUND") {
+      await notifyStaff({
+        channel: "orchestrator",
+        source: "OUTBOUND_CALL_FAILED",
+        sourceKey: `outbound-call-failed:${updated.id}`,
+        title: "Outbound call failed",
+        message: `Call could not be completed (${input.purpose}).`,
+        clientId: input.clientId,
+        appointmentId: input.appointmentId ?? undefined,
+        metadata: { callLogId: updated.id },
+        createdByUserId: ctx.userId,
+      });
+    }
+
+    if (input.direction === "INBOUND" && updated.status !== "ANSWERED") {
+      await notifyStaff({
+        channel: "orchestrator",
+        source: "INBOUND_CALL_HUMAN_REVIEW",
+        sourceKey: `inbound-call-review:${updated.id}`,
+        title: "Inbound call needs review",
+        message: `Inbound call status: ${updated.status}. Staff review required.`,
+        clientId: input.clientId,
+        appointmentId: input.appointmentId ?? undefined,
+        metadata: { callLogId: updated.id },
+        createdByUserId: ctx.userId,
+      });
+    }
 
     return updated;
   },

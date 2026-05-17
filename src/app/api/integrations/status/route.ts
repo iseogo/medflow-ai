@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { requirePermission } from "@/lib/api-auth";
-import { integrationDashboardSnapshot } from "@/lib/integrations/env";
+import { integrationDashboardSnapshot, isMockModeForced } from "@/lib/integrations/env";
+import { notifyStaff } from "@/lib/notifications/notification-bridge";
 import { emailService } from "@/services/email.service";
 import { n8nService } from "@/services/n8n.service";
 import { openAiService } from "@/services/openai.service";
@@ -14,6 +15,16 @@ export async function GET() {
   if (error) return error;
 
   const dashboard = integrationDashboardSnapshot();
+
+  if (!isMockModeForced() && dashboard.providers.webhooks !== "configured") {
+    await notifyStaff({
+      channel: "system",
+      source: "INTEGRATION_FAILURE",
+      sourceKey: "integration:webhooks-unconfigured",
+      title: "Integration configuration issue",
+      message: "Webhooks are not configured. Set WEBHOOK_SECRET before enabling live mode.",
+    }).catch(() => undefined);
+  }
 
   return NextResponse.json({
     mockMode: dashboard.mockMode,

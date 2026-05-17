@@ -27,6 +27,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { RoleType } from "@prisma/client";
+import { useNotificationUnreadCount } from "@/hooks/use-notification-unread-count";
 import { canAccessDashboardRoute } from "@/lib/route-permissions";
 import { cn } from "@/lib/utils";
 
@@ -35,11 +36,12 @@ type NavItem = {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
   exact?: boolean;
+  /** Show unread count badge from /api/notifications/unread-count */
+  showUnreadBadge?: boolean;
 };
 
 const mainNav: NavItem[] = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard, exact: true },
-  { href: "/dashboard/notifications", label: "Notifications", icon: Bell },
   { href: "/dashboard/clients", label: "Clients", icon: Users },
   { href: "/dashboard/appointments", label: "Appointments", icon: Calendar },
   {
@@ -63,6 +65,12 @@ const adminNav: NavItem[] = [
 ];
 
 const commsNav: NavItem[] = [
+  {
+    href: "/dashboard/notifications",
+    label: "Notifications",
+    icon: Bell,
+    showUnreadBadge: true,
+  },
   { href: "/dashboard/reminders", label: "Reminders", icon: BellRing },
   { href: "/dashboard/calls", label: "Calls", icon: Phone },
   { href: "/dashboard/outbound-calls", label: "Outbound Calls", icon: PhoneOutgoing },
@@ -89,10 +97,12 @@ function NavLink({
   item,
   pathname,
   role,
+  unreadCount,
 }: {
   item: NavItem;
   pathname: string;
   role: RoleType;
+  unreadCount?: number;
 }) {
   if (!canAccessDashboardRoute(role, item.href)) return null;
 
@@ -100,6 +110,13 @@ function NavLink({
     ? pathname === item.href
     : pathname.startsWith(item.href);
   const Icon = item.icon;
+  const badge =
+    item.showUnreadBadge && unreadCount != null && unreadCount > 0
+      ? unreadCount > 99
+        ? "99+"
+        : String(unreadCount)
+      : null;
+
   return (
     <Link
       href={item.href}
@@ -111,7 +128,15 @@ function NavLink({
       )}
     >
       <Icon className="h-4 w-4 shrink-0" />
-      {item.label}
+      <span className="flex-1">{item.label}</span>
+      {badge && (
+        <span
+          className="flex h-5 min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 text-[10px] font-semibold text-white"
+          aria-label={`${unreadCount} unread`}
+        >
+          {badge}
+        </span>
+      )}
     </Link>
   );
 }
@@ -121,11 +146,13 @@ function NavSection({
   items,
   pathname,
   role,
+  unreadCount,
 }: {
   title?: string;
   items: NavItem[];
   pathname: string;
   role: RoleType;
+  unreadCount?: number;
 }) {
   const visible = items.filter((item) => canAccessDashboardRoute(role, item.href));
   if (visible.length === 0) return null;
@@ -139,7 +166,13 @@ function NavSection({
       )}
       <div className="space-y-1">
         {items.map((item) => (
-          <NavLink key={item.href} item={item} pathname={pathname} role={role} />
+          <NavLink
+            key={item.href}
+            item={item}
+            pathname={pathname}
+            role={role}
+            unreadCount={item.showUnreadBadge ? unreadCount : undefined}
+          />
         ))}
       </div>
     </div>
@@ -150,6 +183,9 @@ export function Sidebar() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const role = session?.user?.role;
+  const canViewNotifications =
+    !!role && canAccessDashboardRoute(role, "/dashboard/notifications");
+  const unreadCount = useNotificationUnreadCount(canViewNotifications);
 
   if (!role) {
     return (
@@ -174,7 +210,13 @@ export function Sidebar() {
         <NavSection items={mainNav} pathname={pathname} role={role} />
         <NavSection title="Physical" items={physicalNav} pathname={pathname} role={role} />
         <NavSection title="Administration" items={adminNav} pathname={pathname} role={role} />
-        <NavSection title="Communications" items={commsNav} pathname={pathname} role={role} />
+        <NavSection
+          title="Communications"
+          items={commsNav}
+          pathname={pathname}
+          role={role}
+          unreadCount={unreadCount}
+        />
         <NavSection items={systemNav} pathname={pathname} role={role} />
       </nav>
       <div className="border-t border-slate-200 p-4">

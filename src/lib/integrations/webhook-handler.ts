@@ -1,6 +1,7 @@
 import { CommunicationStatus } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { createAuditLog } from "@/lib/audit";
+import { notifyStaff } from "@/lib/notifications/notification-bridge";
 import { prisma } from "@/lib/prisma";
 import {
   readWebhookBody,
@@ -51,7 +52,17 @@ export async function handleMedflowWebhook(
 ): Promise<NextResponse> {
   const rawBody = await readWebhookBody(request);
   const auth = validateMedflowWebhookSecret(request, rawBody);
-  if (!auth.ok) return auth.response;
+  if (!auth.ok) {
+    await notifyStaff({
+      channel: "system",
+      source: "WEBHOOK_FAILURE",
+      sourceKey: `webhook-auth-fail:${eventType}:${Date.now()}`,
+      title: "Webhook authentication failed",
+      message: `Rejected ${eventType} webhook — verify WEBHOOK_SECRET (MOCK_MODE safe).`,
+      workflowKey: eventType,
+    }).catch(() => undefined);
+    return auth.response;
+  }
 
   let payload: Record<string, unknown> = {};
   if (rawBody) {
@@ -114,10 +125,31 @@ async function applyWebhookSideEffects(
       if (payload.CallDuration) {
         callData.durationSeconds = parseInt(String(payload.CallDuration), 10);
       }
-      await prisma.callLog.updateMany({
+      const updated = await prisma.callLog.updateMany({
         where: callLogId ? { id: callLogId } : { externalRef: callSid },
         data: callData,
       });
+      if (updated.count > 0 && callData.status === "FAILED") {
+        const log = await prisma.callLog.findFirst({
+          where: callLogId ? { id: callLogId } : { externalRef: callSid },
+        });
+        if (log) {
+          await notifyStaff({
+            channel: "system",
+            source:
+              eventType === "inbound-call" ? "INBOUND_CALL_HUMAN_REVIEW" : "OUTBOUND_CALL_FAILED",
+            sourceKey: `webhook-call-failed:${log.id}`,
+            title:
+              eventType === "inbound-call"
+                ? "Inbound call needs review"
+                : "Outbound call failed",
+            message: `Call status update: ${callStatus}`,
+            clientId: log.clientId,
+            appointmentId: log.appointmentId ?? undefined,
+            metadata: { callLogId: log.id, eventType },
+          }).catch(() => undefined);
+        }
+      }
     }
   }
 

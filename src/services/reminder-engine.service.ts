@@ -18,7 +18,7 @@ import { prisma } from "@/lib/prisma";
 import type { ReminderOutcome, ReminderScheduleOffset } from "@/lib/reminder-types";
 import { REMINDER_SCHEDULE_OFFSETS } from "@/lib/reminder-types";
 import { addTimelineEvent } from "@/lib/timeline";
-import { notificationService } from "@/services/notification.service";
+import { notifyStaff } from "@/lib/notifications/notification-bridge";
 import { n8nService } from "./n8n.service";
 import { orchestratorService } from "./orchestrator.service";
 import {
@@ -229,7 +229,8 @@ async function applyClientIntent(
       metadata: { appointmentId, source: "reminder_engine" },
       actorUserId: systemUserId,
     });
-    await notificationService.emit({
+    await notifyStaff({
+      channel: "orchestrator",
       source: "PATIENT_CONFIRMED_APPOINTMENT",
       sourceKey: `patient-confirmed:${appointmentId}`,
       title: "Patient confirmed appointment",
@@ -237,7 +238,6 @@ async function applyClientIntent(
       clientId,
       appointmentId,
       createdByUserId: systemUserId,
-      actorChannel: "orchestrator",
     });
     return "CONFIRMED";
   }
@@ -262,7 +262,8 @@ async function applyClientIntent(
       createdById: systemUserId,
       priority: "URGENT",
     });
-    await notificationService.emit({
+    await notifyStaff({
+      channel: "orchestrator",
       source: "PATIENT_CANCELLED_APPOINTMENT",
       sourceKey: `patient-cancelled:${appointmentId}`,
       title: "Patient cancelled appointment",
@@ -271,7 +272,6 @@ async function applyClientIntent(
       appointmentId,
       staffTaskId: task.id,
       createdByUserId: systemUserId,
-      actorChannel: "orchestrator",
     });
     return "CANCELLED";
   }
@@ -299,7 +299,8 @@ async function applyClientIntent(
     createdById: systemUserId,
     priority: "HIGH",
   });
-  await notificationService.emit({
+  await notifyStaff({
+    channel: "orchestrator",
     source: "PATIENT_RESCHEDULE_REQUESTED",
     sourceKey: `patient-reschedule:${appointmentId}`,
     title: "Reschedule requested",
@@ -308,7 +309,6 @@ async function applyClientIntent(
     appointmentId,
     staffTaskId: task.id,
     createdByUserId: systemUserId,
-    actorChannel: "orchestrator",
   });
   return "RESCHEDULE_REQUESTED";
 }
@@ -622,7 +622,8 @@ export const reminderEngineService = {
     });
 
     if (outcome === "FAILED" || outcome === "ESCALATED") {
-      await notificationService.emit({
+      await notifyStaff({
+        channel: "orchestrator",
         source: "REMINDER_FAILED",
         sourceKey: `reminder-failed:${reminderLog.id}`,
         title: "Reminder failed or escalated",
@@ -632,10 +633,10 @@ export const reminderEngineService = {
         staffTaskId: escalationTaskId ?? undefined,
         metadata: { reminderLogId: reminderLog.id, outcome, offset },
         createdByUserId: userId,
-        actorChannel: "orchestrator",
       });
     } else if (outcome === "NO_RESPONSE") {
-      await notificationService.emit({
+      await notifyStaff({
+        channel: "orchestrator",
         source: "PATIENT_NO_RESPONSE",
         sourceKey: `patient-no-response:${reminderLog.id}`,
         title: "Patient did not respond",
@@ -644,7 +645,6 @@ export const reminderEngineService = {
         appointmentId,
         metadata: { reminderLogId: reminderLog.id },
         createdByUserId: userId,
-        actorChannel: "orchestrator",
       });
     }
 

@@ -150,8 +150,8 @@ function auditStatic() {
   }
 
   const reminder = read("src/services/reminder-engine.service.ts");
-  if (!reminder.includes("notificationService.emit")) {
-    warn("Reminder engine should emit in-app notifications via orchestrator channel");
+  if (!reminder.includes("notifyStaff")) {
+    warn("Reminder engine should emit in-app notifications via notifyStaff bridge");
   } else {
     ok("Reminder engine integrates with notification service (orchestrator channel)");
   }
@@ -169,15 +169,32 @@ function auditStatic() {
     ok("Patient-facing notifications add client timeline event");
   }
 
-  const integrations = [
-    ["reminder-engine", "REMINDER_FAILED", "src/services/reminder-engine.service.ts"],
-    ["supervisor", "SUPERVISOR_WARNING", "src/services/supervisor-agent.service.ts"],
-    ["walk-in", "WALK_IN_ARRIVED", "src/services/physical-client.service.ts"],
+  const integrationChecks: [string, string][] = [
+    ["notification-bridge", "src/lib/notifications/notification-bridge.ts"],
+    ["reminder-engine", "src/services/reminder-engine.service.ts"],
+    ["supervisor", "src/services/supervisor-agent.service.ts"],
+    ["master-orchestrator", "src/services/master-orchestrator.service.ts"],
+    ["orchestrator-comms", "src/services/orchestrator.service.ts"],
+    ["physical-client", "src/services/physical-client.service.ts"],
+    ["webhook-handler", "src/lib/integrations/webhook-handler.ts"],
+    ["staff-intervention API", "src/app/api/staff-intervention/route.ts"],
+    ["appointments API", "src/app/api/appointments/[id]/route.ts"],
   ];
-  for (const [, source, file] of integrations) {
-    if (existsSync(path.join(process.cwd(), file)) && read(file).includes(source)) {
-      ok(`Integrates ${source}`);
+  for (const [label, file] of integrationChecks) {
+    if (!existsSync(path.join(process.cwd(), file))) {
+      fail(`Missing integration file: ${file}`);
+    } else if (!read(file).includes("notifyStaff")) {
+      warn(`${label} should use notifyStaff bridge`);
+    } else {
+      ok(`${label} uses notification bridge`);
     }
+  }
+
+  const bridge = read("src/lib/notifications/notification-bridge.ts");
+  if (!bridge.includes("notifyStaff")) {
+    fail("notification-bridge must export notifyStaff");
+  } else {
+    ok("Central notification bridge for orchestrator/supervisor/staff/system");
   }
 
   const api = auditApiRouteSecurity();

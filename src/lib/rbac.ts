@@ -35,7 +35,8 @@ export type Permission =
   | "supervisor:read"
   | "supervisor:run"
   | "notifications:read"
-  | "notifications:write";
+  | "notifications:write"
+  | "command-center:read";
 
 export const ROLE_PERMISSIONS: Record<RoleType, Permission[]> = {
   ADMIN: [
@@ -73,6 +74,7 @@ export const ROLE_PERMISSIONS: Record<RoleType, Permission[]> = {
     "supervisor:run",
     "notifications:read",
     "notifications:write",
+    "command-center:read",
   ],
   MANAGER: [
     "clients:read",
@@ -99,6 +101,7 @@ export const ROLE_PERMISSIONS: Record<RoleType, Permission[]> = {
     "supervisor:run",
     "notifications:read",
     "notifications:write",
+    "command-center:read",
   ],
   FRONT_DESK_STAFF: [
     "clients:read",
@@ -118,6 +121,7 @@ export const ROLE_PERMISSIONS: Record<RoleType, Permission[]> = {
     "reminders:write",
     "notifications:read",
     "notifications:write",
+    "command-center:read",
   ],
   BILLING_STAFF: [
     "clients:read-limited",
@@ -128,6 +132,7 @@ export const ROLE_PERMISSIONS: Record<RoleType, Permission[]> = {
     "settings:read",
     "notifications:read",
     "notifications:write",
+    "command-center:read",
   ],
   MEDICAL_RECORDS_STAFF: [
     "clients:read-limited",
@@ -136,6 +141,7 @@ export const ROLE_PERMISSIONS: Record<RoleType, Permission[]> = {
     "settings:read",
     "notifications:read",
     "notifications:write",
+    "command-center:read",
   ],
   CLINICAL_STAFF: [
     "clients:read",
@@ -151,6 +157,7 @@ export const ROLE_PERMISSIONS: Record<RoleType, Permission[]> = {
     "reminders:read",
     "notifications:read",
     "notifications:write",
+    "command-center:read",
   ],
   READ_ONLY: [
     "clients:read",
@@ -169,6 +176,7 @@ export const ROLE_PERMISSIONS: Record<RoleType, Permission[]> = {
     "orchestrator:read",
     "reminders:read",
     "notifications:read",
+    "command-center:read",
   ],
 };
 

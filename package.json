@@ -29,6 +29,7 @@
     "audit:supervisor": "tsx scripts/supervisor-audit.ts",
     "audit:notifications": "tsx scripts/notifications-audit.ts",
     "audit:reliability": "tsx scripts/reliability-audit.ts",
+    "audit:command-center": "tsx scripts/command-center-audit.ts",
     "backfill:appointment-events": "tsx scripts/backfill-appointment-created-events.ts",
     "generate:n8n-workflows": "tsx scripts/generate-n8n-workflows.ts",
     "postinstall": "prisma generate"

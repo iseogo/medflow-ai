@@ -10,6 +10,7 @@ type RouteRule = {
 /** Dashboard routes → required permissions (any match grants access). */
 export const DASHBOARD_ROUTE_RULES: RouteRule[] = [
   { prefix: "/dashboard", permissions: ["settings:read"], exact: true },
+  { prefix: "/dashboard/command-center", permissions: ["command-center:read"] },
   { prefix: "/dashboard/staff", permissions: ["users:manage"] },
   { prefix: "/dashboard/clients", permissions: ["clients:read", "clients:read-limited"] },
   { prefix: "/dashboard/appointments", permissions: ["appointments:read"] },

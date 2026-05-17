@@ -1,16 +1,77 @@
+# MedFlow AI — production stack for Hostinger VPS (Traefik + PostgreSQL).
+# n8n runs separately at https://n8n.smartdeskai.cloud — do not add n8n here.
+#
+# Prerequisites:
+#   1. Traefik with external network `traefik_public` (see README-DEPLOYMENT.md)
+#   2. cp .env.production.example .env  (never commit .env)
+#   3. docker compose up -d --build
+#
+# External PostgreSQL: delete the `postgres` service and `depends_on` under `medflow`.
+
 services:
+  medflow:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: medflow-ai
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      TZ: America/Chicago
+      HOSTNAME: "0.0.0.0"
+      PORT: "3000"
+      RUN_MIGRATIONS_ON_START: "${RUN_MIGRATIONS_ON_START:-true}"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - traefik_public
+      - medflow_internal
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik_public
+      - traefik.http.routers.medflow.rule=Host(`medflow.smartdeskai.cloud`)
+      - traefik.http.routers.medflow.entrypoints=websecure
+      - traefik.http.routers.medflow.tls=true
+      - traefik.http.routers.medflow.tls.certresolver=letsencrypt
+      - traefik.http.services.medflow.loadbalancer.server.port=3000
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+
   postgres:
     image: postgres:16-alpine
+    container_name: medflow-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: medflow
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+      POSTGRES_DB: ${POSTGRES_DB:-medflow}
       TZ: America/Chicago
-    ports:
-      - "5432:5432"
     volumes:
       - medflow_pg_data:/var/lib/postgresql/data
+    networks:
+      - medflow_internal
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-medflow}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  traefik_public:
+    external: true
+  medflow_internal:
+    driver: bridge
 
 volumes:
   medflow_pg_data:

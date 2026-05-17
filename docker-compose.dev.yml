@@ -1,0 +1,18 @@
+# Local development — PostgreSQL only (no Traefik, no MedFlow app container).
+# Usage: docker compose -f docker-compose.dev.yml up -d
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: medflow
+      TZ: America/Chicago
+    ports:
+      - "5432:5432"
+    volumes:
+      - medflow_pg_data_dev:/var/lib/postgresql/data
+
+volumes:
+  medflow_pg_data_dev:

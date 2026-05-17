@@ -32,6 +32,7 @@
     "audit:command-center": "tsx scripts/command-center-audit.ts",
     "audit:executive-dashboard": "tsx scripts/executive-dashboard-audit.ts",
     "audit:live-command-center": "tsx scripts/live-command-center-audit.ts",
+    "audit:deployment": "tsx scripts/deployment-audit.ts",
     "backfill:appointment-events": "tsx scripts/backfill-appointment-created-events.ts",
     "generate:n8n-workflows": "tsx scripts/generate-n8n-workflows.ts",
     "postinstall": "prisma generate"

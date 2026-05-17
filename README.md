@@ -40,7 +40,7 @@ Optional seed overrides:
 ### 3. Start PostgreSQL
 
 ```bash
-docker compose up -d
+docker compose -f docker-compose.dev.yml up -d
 ```
 
 Or use any PostgreSQL 14+ instance reachable from `DATABASE_URL`.
@@ -294,6 +294,14 @@ See **[README-PHASE9.md](./README-PHASE9.md)**, **[docs/phase9/ROADMAP.md](./doc
 
 ```bash
 npm run audit:coordination && npm run audit:architecture && npm run audit:security && npm run audit:production
+```
+
+## Phase 13
+
+**VPS deployment** — Docker + Traefik on Hostinger; app at **https://medflow.smartdeskai.cloud**; n8n stays at **https://n8n.smartdeskai.cloud**. See **[README-PHASE13.md](./README-PHASE13.md)** and **[README-DEPLOYMENT.md](./README-DEPLOYMENT.md)**.
+
+```bash
+npm run audit:deployment
 ```
 
 ## Next phases

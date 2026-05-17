@@ -1,0 +1,16 @@
+node_modules
+.next
+.git
+.github
+.env
+.env.*
+!.env.production.example
+*.md
+!README-DEPLOYMENT.md
+coverage
+.cursor
+terminals
+agent-transcripts
+mcps
+*.tsbuildinfo
+npm-debug.log*

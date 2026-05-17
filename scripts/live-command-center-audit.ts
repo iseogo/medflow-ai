@@ -148,13 +148,25 @@ function auditStatic() {
     "reminderFailures",
     "aiSupervisor",
     "workflowBottlenecks",
-    "integrationHealth",
     "liveActivityFeed",
   ];
   for (const key of sectionKeys) {
     if (!svc.includes(key)) fail(`Live section ${key} missing`);
   }
-  ok("All 12 live display section builders");
+  ok("All 11 live display section builders (no integration health on wall)");
+
+  if (svc.includes('key: "integrationHealth"') || svc.includes("Integration / System Health")) {
+    fail("Integration/System Health must not appear on live wall display");
+  } else {
+    ok("Integration health excluded from live wall");
+  }
+
+  const mainCc = read("src/services/command-center.service.ts");
+  if (!mainCc.includes("integrationHealth")) {
+    fail("Main command center must still include integration health");
+  } else {
+    ok("Integration health retained on main command center");
+  }
 
   const adminSections = sectionsForDisplayMode("ADMIN" as RoleType, "executive");
   if (adminSections.length < 4) {

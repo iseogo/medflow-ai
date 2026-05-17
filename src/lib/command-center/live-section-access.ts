@@ -13,7 +13,6 @@ const SECTION_PERMISSIONS: Record<LiveSectionKey, Permission[]> = {
   reminderFailures: ["reminders:read"],
   aiSupervisor: ["orchestrator:read", "supervisor:read"],
   workflowBottlenecks: ["supervisor:read", "orchestrator:read"],
-  integrationHealth: ["settings:read"],
   liveActivityFeed: ["notifications:read", "settings:read"],
 };
 
@@ -23,7 +22,6 @@ const MODE_SECTIONS: Record<LiveDisplayMode, LiveSectionKey[]> = {
     "workflowBottlenecks",
     "providerCapacity",
     "staffTasks",
-    "integrationHealth",
     "liveActivityFeed",
     "waitingRoom",
     "todayAppointments",
@@ -51,7 +49,6 @@ const MODE_SECTIONS: Record<LiveDisplayMode, LiveSectionKey[]> = {
     "staffTasks",
     "workflowBottlenecks",
     "providerCapacity",
-    "integrationHealth",
     "liveActivityFeed",
     "waitingRoom",
   ],

@@ -16,7 +16,7 @@ import {
   safeStatusLabel,
   safeTimeLabel,
 } from "@/lib/command-center/safe-summary";
-import { integrationDashboardSnapshot, isMockModeForced } from "@/lib/integrations/env";
+import { isMockModeForced } from "@/lib/integrations/env";
 import { ACTIVE_WAITING_ROOM_STATES } from "@/lib/waiting-room";
 import { prisma } from "@/lib/prisma";
 import { resolveDisplayMode } from "./display-mode.service";
@@ -318,28 +318,6 @@ export const liveCommandCenterService = {
             subline: b.detail,
             tone: b.tone,
           })),
-        };
-      },
-      integrationHealth: () => {
-        const integration = integrationDashboardSnapshot();
-        return {
-          key: "integrationHealth",
-          title: "Integration / System Health",
-          count: Object.keys(integration.providers).length,
-          tone: mockMode ? "gray" : "blue",
-          items: [
-            {
-              id: "mock",
-              headline: mockMode ? "MOCK_MODE: ON" : "MOCK_MODE: OFF",
-              subline: "No live external API traffic",
-              tone: "gray",
-            },
-            ...Object.entries(integration.providers).map(([name, status]) => ({
-              id: name,
-              headline: `${name}: ${status}`,
-              tone: status === "healthy" ? "green" : ("yellow" as CommandCenterTone),
-            })),
-          ],
         };
       },
       liveActivityFeed: () => ({

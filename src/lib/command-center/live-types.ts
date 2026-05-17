@@ -13,7 +13,6 @@ export type LiveSectionKey =
   | "reminderFailures"
   | "aiSupervisor"
   | "workflowBottlenecks"
-  | "integrationHealth"
   | "liveActivityFeed";
 
 export type LiveBoardItem = {

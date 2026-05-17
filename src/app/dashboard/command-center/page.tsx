@@ -1,19 +1,14 @@
 import { getServerSession } from "next-auth";
 import { RoleType } from "@prisma/client";
+import Link from "next/link";
 import { redirect } from "next/navigation";
+import { Monitor } from "lucide-react";
 import { Header } from "@/components/dashboard/Header";
 import { PageHeader } from "@/components/dashboard/PageHeader";
-import { CommandCenterSectionCard } from "@/components/dashboard/command-center/CommandCenterSectionCard";
+import { CommandCenterView } from "@/components/dashboard/command-center/CommandCenterView";
 import { authOptions } from "@/lib/auth";
 import { hasPermission } from "@/lib/rbac";
 import { commandCenterService } from "@/services/command-center.service";
-import { cn } from "@/lib/utils";
-
-const HEALTH_STYLES = {
-  healthy: "border-emerald-200 bg-emerald-50 text-emerald-900",
-  degraded: "border-amber-200 bg-amber-50 text-amber-900",
-  critical: "border-red-200 bg-red-50 text-red-900",
-} as const;
 
 export default async function CommandCenterPage() {
   const session = await getServerSession(authOptions);
@@ -31,43 +26,17 @@ export default async function CommandCenterPage() {
       <Header title="Command Center" />
       <div className="flex-1 overflow-auto p-8">
         <PageHeader
-          title="Command Center"
-          description="Unified operational view — PHI-safe summaries only. Sections respect your role."
+          title="Healthcare Operations Command Center"
+          description="Executive visibility for patient flow, staff productivity, AI coordination, and workflow health — PHI-safe summaries only."
         />
-
-        <div
-          className={cn(
-            "mb-6 flex flex-wrap items-center justify-between gap-4 rounded-lg border px-4 py-3",
-            HEALTH_STYLES[snapshot.systemHealth]
-          )}
+        <Link
+          href="/dashboard/command-center/live"
+          className="mb-6 inline-flex items-center gap-2 rounded-lg border border-medflow-200 bg-medflow-50 px-4 py-2 text-sm font-medium text-medflow-800 hover:bg-medflow-100"
         >
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-wide">
-              System health · {snapshot.systemHealth}
-            </p>
-            <p className="mt-1 text-sm opacity-90">
-              {snapshot.mockMode
-                ? "MOCK_MODE is ON — live APIs disabled (safe demo)"
-                : "Live integration mode — verify settings before production"}
-            </p>
-          </div>
-          <p className="text-xs text-slate-600">
-            Updated {new Date(snapshot.generatedAt).toLocaleString("en-US", { timeZone: "America/Chicago" })}
-          </p>
-        </div>
-
-        {snapshot.sections.length === 0 ? (
-          <p className="text-sm text-slate-600">
-            No command center sections are available for your role. Contact an administrator if you
-            need access.
-          </p>
-        ) : (
-          <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
-            {snapshot.sections.map((section) => (
-              <CommandCenterSectionCard key={section.id} section={section} />
-            ))}
-          </div>
-        )}
+          <Monitor className="h-4 w-4" />
+          Open live wall display for shared screens
+        </Link>
+        <CommandCenterView snapshot={snapshot} />
       </div>
     </>
   );

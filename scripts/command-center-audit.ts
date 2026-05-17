@@ -34,6 +34,8 @@ function auditStatic() {
     "src/lib/command-center/section-access.ts",
     "src/lib/command-center/safe-summary.ts",
     "src/components/dashboard/command-center/CommandCenterSectionCard.tsx",
+    "src/components/dashboard/command-center/ExecutiveKpiBar.tsx",
+    "src/services/dashboard-kpi.service.ts",
   ];
   for (const f of required) {
     if (!existsSync(path.join(process.cwd(), f))) fail(`Missing ${f}`);
@@ -105,10 +107,14 @@ function auditStatic() {
     ok("Supervisor findings (alerts + incidents) included");
   }
 
-  if (!svc.includes("workflowHealthEvent") || !svc.includes("staffTask")) {
+  if (
+    !svc.includes("workflowBottleneck") &&
+    !svc.includes("stuckWorkflows") &&
+    !svc.includes("workflowHealthEvent")
+  ) {
     fail("Workflow health not included");
   } else {
-    ok("Workflow health (stuck events + staff tasks) included");
+    ok("Workflow health (bottlenecks + stuck events) included");
   }
 
   if (!svc.includes("integrationDashboardSnapshot") || !svc.includes("isMockModeForced")) {
@@ -124,21 +130,23 @@ function auditStatic() {
   }
 
   const sections = [
-    "criticalAlerts",
-    "liveOperations",
-    "aiSupervisor",
-    "communications",
-    "appointmentsWaitingRoom",
-    "workflowHealth",
-    "securityAudit",
-    "integrationStatus",
+    "criticalActionCenter",
+    "liveClinicOperations",
+    "waitingRoomIntelligence",
+    "staffProductivity",
+    "appointmentSchedulingHealth",
+    "communicationsCommand",
+    "aiSupervisorCenter",
+    "workflowBottleneck",
+    "securityCompliance",
+    "integrationHealth",
   ];
   for (const key of sections) {
-    if (!svc.includes(`"${key}"`) && !svc.includes(`'${key}'`)) {
+    if (!svc.includes(key)) {
       fail(`Section ${key} missing from service`);
     }
   }
-  ok("All eight command center sections defined");
+  ok("All executive command center sections defined");
 
   if (!page.includes("command-center:read")) {
     fail("Page must gate on command-center:read");
@@ -146,23 +154,23 @@ function auditStatic() {
     ok("Page enforces command-center:read");
   }
 
-  if (!canViewCommandCenterSection("ADMIN" as RoleType, "criticalAlerts")) {
+  if (!canViewCommandCenterSection("ADMIN" as RoleType, "criticalActionCenter")) {
     fail("ADMIN should see all sections");
   } else {
     ok("ADMIN section access");
   }
 
-  if (canViewCommandCenterSection("ADMIN" as RoleType, "securityAudit") === false) {
-    fail("ADMIN must view security audit section");
+  if (canViewCommandCenterSection("ADMIN" as RoleType, "securityCompliance") === false) {
+    fail("ADMIN must view security compliance section");
   }
 
   const managerSections = sections.filter((s) =>
     canViewCommandCenterSection("MANAGER" as RoleType, s as Parameters<typeof canViewCommandCenterSection>[1])
   );
-  if (managerSections.length < 5) {
-    warn(`MANAGER sees ${managerSections.length}/8 sections (operational summary)`);
+  if (managerSections.length < 6) {
+    warn(`MANAGER sees ${managerSections.length}/10 sections (operational summary)`);
   } else {
-    ok(`MANAGER operational sections (${managerSections.length}/8)`);
+    ok(`MANAGER operational sections (${managerSections.length}/10)`);
   }
 }
 

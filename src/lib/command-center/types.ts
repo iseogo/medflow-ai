@@ -23,6 +23,35 @@ export type CommandCenterSection = {
   href: string;
   items: CommandCenterItem[];
   hidden?: boolean;
+  priority?: number;
+};
+
+export type ExecutiveKpiItem = {
+  key: string;
+  label: string;
+  value: string;
+  tone: CommandCenterTone;
+  href: string;
+};
+
+export type ExecutiveActionAlert = {
+  id: string;
+  title: string;
+  severity: CommandCenterTone;
+  patientSummary?: string;
+  assignedOwner: string;
+  timeWaiting: string;
+  recommendedNextAction: string;
+  escalationStatus: string;
+  href: string;
+};
+
+export type ActivityFeedEntry = {
+  id: string;
+  message: string;
+  category: string;
+  tone: CommandCenterTone;
+  time: string;
 };
 
 export type CommandCenterSnapshot = {
@@ -30,5 +59,8 @@ export type CommandCenterSnapshot = {
   mockMode: boolean;
   systemHealth: "healthy" | "degraded" | "critical";
   generatedAt: string;
+  kpis: ExecutiveKpiItem[];
+  criticalActions: ExecutiveActionAlert[];
+  activityFeed: ActivityFeedEntry[];
   sections: CommandCenterSection[];
 };

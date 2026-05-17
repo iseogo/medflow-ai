@@ -2,28 +2,33 @@ import { RoleType } from "@prisma/client";
 import { hasPermission, Permission } from "@/lib/rbac";
 
 export type SectionKey =
-  | "criticalAlerts"
-  | "liveOperations"
-  | "aiSupervisor"
-  | "communications"
-  | "appointmentsWaitingRoom"
-  | "workflowHealth"
-  | "securityAudit"
-  | "integrationStatus";
+  | "criticalActionCenter"
+  | "liveClinicOperations"
+  | "waitingRoomIntelligence"
+  | "staffProductivity"
+  | "appointmentSchedulingHealth"
+  | "communicationsCommand"
+  | "aiSupervisorCenter"
+  | "workflowBottleneck"
+  | "securityCompliance"
+  | "integrationHealth";
 
 const SECTION_PERMISSIONS: Record<SectionKey, Permission[]> = {
-  criticalAlerts: ["notifications:read"],
-  liveOperations: [
+  criticalActionCenter: ["notifications:read"],
+  liveClinicOperations: [
     "walkins:read",
     "checkins:read",
     "staff-intervention:read",
+    "appointments:read",
   ],
-  aiSupervisor: ["orchestrator:read", "supervisor:read"],
-  communications: ["communications:read", "reminders:read"],
-  appointmentsWaitingRoom: ["appointments:read", "checkins:read", "walkins:read"],
-  workflowHealth: ["supervisor:read", "orchestrator:read"],
-  securityAudit: ["audit:read"],
-  integrationStatus: ["settings:read"],
+  waitingRoomIntelligence: ["checkins:read", "walkins:read"],
+  staffProductivity: ["staff-tasks:read", "staff-intervention:read", "appointments:read"],
+  appointmentSchedulingHealth: ["appointments:read", "reminders:read"],
+  communicationsCommand: ["communications:read", "reminders:read"],
+  aiSupervisorCenter: ["orchestrator:read", "supervisor:read"],
+  workflowBottleneck: ["supervisor:read", "orchestrator:read", "staff-intervention:read"],
+  securityCompliance: ["audit:read"],
+  integrationHealth: ["settings:read"],
 };
 
 export function canViewCommandCenterSection(
@@ -31,9 +36,6 @@ export function canViewCommandCenterSection(
   section: SectionKey
 ): boolean {
   if (role === "ADMIN") return true;
-  if (role === "MANAGER" && section !== "integrationStatus") {
-    return hasAnyForSection(role, section);
-  }
   return hasAnyForSection(role, section);
 }
 

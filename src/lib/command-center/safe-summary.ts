@@ -23,3 +23,22 @@ export function safeTimeLabel(date: Date) {
 export function safeStatusLabel(status: string) {
   return status.replace(/_/g, " ").toLowerCase();
 }
+
+/** Queue/room label for live wall displays — no names. */
+export function safeQueueLabel(input: {
+  queuePosition?: number | null;
+  location?: string | null;
+}) {
+  const parts: string[] = [];
+  if (input.queuePosition != null) parts.push(`Queue #${input.queuePosition}`);
+  if (input.location?.trim()) parts.push(`Room ${input.location.trim()}`);
+  return parts.length > 0 ? parts.join(" · ") : "Queue —";
+}
+
+/** Live wall patient tag: MRN tail or case id only (never legal name). */
+export function safeLivePatientTag(input: { mrn?: string | null; clientId?: string }) {
+  if (input.mrn && input.mrn.length >= 2) {
+    return `Pt ${input.mrn.slice(0, 2).toUpperCase()}••${input.mrn.slice(-4)}`;
+  }
+  return safeClientRef(input);
+}

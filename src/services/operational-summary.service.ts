@@ -31,6 +31,8 @@ export type OperationalSummary = {
   reminderConfirmed7d: number;
   reminderTotal7d: number;
   pendingCalls: number;
+  missedInboundCallsOpen: number;
+  missedInboundCallsToday: number;
   pendingSms: number;
   pendingEmails: number;
   schedulingConflictsBlocked: number;
@@ -69,6 +71,8 @@ export const operationalSummaryService = {
       reminderConfirmed7d,
       reminderTotal7d,
       pendingCalls,
+      missedInboundCallsOpen,
+      missedInboundCallsToday,
       pendingSms,
       pendingEmails,
       schedulingConflictsBlocked,
@@ -156,6 +160,19 @@ export const operationalSummaryService = {
       }),
       prisma.reminderLog.count({ where: { createdAt: { gte: LOOKBACK_7D } } }),
       prisma.callLog.count({ where: { status: "PENDING" } }),
+      prisma.staffNotification.count({
+        where: {
+          source: "MISSED_INBOUND_CALL",
+          status: { notIn: ["RESOLVED", "DISMISSED"] },
+        },
+      }),
+      prisma.callLog.count({
+        where: {
+          direction: "INBOUND",
+          status: { in: ["NO_ANSWER", "MISSED", "ABANDONED", "FAILED"] },
+          createdAt: { gte: todayStart, lte: todayEnd },
+        },
+      }),
       prisma.smsLog.count({ where: { status: "PENDING" } }),
       prisma.emailLog.count({ where: { status: "PENDING" } }),
       prisma.coordinationIncident.count({
@@ -202,6 +219,8 @@ export const operationalSummaryService = {
       reminderConfirmed7d,
       reminderTotal7d,
       pendingCalls,
+      missedInboundCallsOpen,
+      missedInboundCallsToday,
       pendingSms,
       pendingEmails,
       schedulingConflictsBlocked,

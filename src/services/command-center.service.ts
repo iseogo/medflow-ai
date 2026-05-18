@@ -110,6 +110,13 @@ async function buildActivityFeed(role: RoleType): Promise<ActivityFeedEntry[]> {
         category = "Communications";
         tone = "green";
         break;
+      case "COMMUNICATION_CALL":
+        if (t.title.toLowerCase().includes("missed")) {
+          message = `Missed inbound call — ${patient}`;
+          category = "Communications";
+          tone = "orange";
+        }
+        break;
       case "AGENT_PROPOSAL_CREATED":
         message = `AI action pending review`;
         category = "AI coordination";
@@ -266,6 +273,28 @@ export const commandCenterService = {
     const activityFeed = await buildActivityFeed(role);
 
     const criticalActions: ExecutiveActionAlert[] = [];
+
+    const missedCallAlerts = notifications.filter(
+      (n) => n.source === "MISSED_INBOUND_CALL"
+    );
+
+    for (const n of missedCallAlerts.slice(0, 4)) {
+      if (criticalActions.some((c) => c.id === n.id)) continue;
+      criticalActions.push({
+        id: n.id,
+        title: n.title,
+        severity: n.priority === "CRITICAL" ? "red" : "orange",
+        patientSummary: n.client
+          ? safeClientRef({ mrn: n.client.mrn, clientId: n.client.id })
+          : "Inbound caller",
+        assignedOwner: ownerLabel(n.assignedRole, n.assignedUserId),
+        timeWaiting: waitLabel(n.createdAt),
+        recommendedNextAction:
+          n.recommendedNextAction ?? "Call patient back and document outcome",
+        escalationStatus: n.status === "UNREAD" ? "Awaiting callback" : safeStatusLabel(n.status),
+        href: "/dashboard/notifications",
+      });
+    }
 
     for (const n of urgent.slice(0, 6)) {
       criticalActions.push({
@@ -447,17 +476,27 @@ export const commandCenterService = {
       title: "Communications Command",
       count:
         summary.pendingCalls +
+        summary.missedInboundCallsOpen +
         summary.pendingSms +
         summary.reminderFailed7d +
         webhookFailures,
-      tone: toneFromCount(summary.reminderFailed7d, { warn: 1, critical: 3 }),
-      recommendedNextAction: "Clear inbound review queue and failed reminders",
-      href: "/dashboard/reminders",
+      tone: toneFromCount(
+        summary.missedInboundCallsOpen + summary.reminderFailed7d,
+        { warn: 1, critical: 3 }
+      ),
+      recommendedNextAction:
+        "Return missed inbound calls within 15 minutes; clear failed reminders",
+      href: "/dashboard/notifications",
       priority: 6,
       items: [
         {
+          id: "missed",
+          label: `${summary.missedInboundCallsOpen} missed inbound call(s) need callback`,
+          detail: `${summary.missedInboundCallsToday} today`,
+        },
+        {
           id: "calls",
-          label: `${summary.pendingCalls} inbound call(s) awaiting review`,
+          label: `${summary.pendingCalls} call log(s) pending`,
         },
         {
           id: "sms",

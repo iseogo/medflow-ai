@@ -11,7 +11,8 @@ import { prisma } from "@/lib/prisma";
 
 function mapTimelineMessage(
   eventType: string,
-  patient: string
+  patient: string,
+  title?: string
 ): { message: string; category: string; tone: CommandCenterTone } {
   switch (eventType) {
     case "PHYSICAL_CHECK_IN":
@@ -24,6 +25,19 @@ function mapTimelineMessage(
       return { message: `Walk-in completed — ${patient}`, category: "Walk-in", tone: "green" };
     case "REMINDER_CYCLE_COMPLETED":
       return { message: `Reminder confirmed — ${patient}`, category: "Reminders", tone: "green" };
+    case "COMMUNICATION_CALL":
+      if (title?.toLowerCase().includes("missed")) {
+        return {
+          message: `Missed inbound call — ${patient}`,
+          category: "Communications",
+          tone: "orange",
+        };
+      }
+      return {
+        message: `Call activity — ${patient}`,
+        category: "Communications",
+        tone: "gray",
+      };
     case "AGENT_PROPOSAL_CREATED":
       return { message: "AI action awaiting review", category: "AI", tone: "purple" };
     case "STAFF_OVERRIDE":
@@ -54,6 +68,7 @@ export const liveActivityFeedService = {
         select: {
           id: true,
           eventType: true,
+          title: true,
           createdAt: true,
           clientId: true,
           client: { select: { id: true, mrn: true } },
@@ -79,7 +94,7 @@ export const liveActivityFeedService = {
         mrn: t.client.mrn,
         clientId: t.clientId,
       });
-      const mapped = mapTimelineMessage(t.eventType, patient);
+      const mapped = mapTimelineMessage(t.eventType, patient, t.title);
       items.push({
         id: `tl-${t.id}`,
         message: mapped.message,

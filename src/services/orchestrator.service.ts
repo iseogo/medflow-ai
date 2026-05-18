@@ -6,7 +6,9 @@ import {
 import { DuplicateCommunicationError } from "@/lib/communication-dedup";
 import { assertOutboundCommunicationAllowed } from "@/lib/reliability/communication-idempotency";
 import { recordCommunicationTimelineAndAudit } from "@/lib/communication-log";
+import { isMissedInboundCallStatus } from "@/lib/missed-call/missed-call-statuses";
 import { notifyStaff } from "@/lib/notifications/notification-bridge";
+import { missedCallService } from "@/services/missed-call.service";
 import { prisma } from "@/lib/prisma";
 import { emailService } from "./email.service";
 import { n8nService } from "./n8n.service";
@@ -141,6 +143,8 @@ export const orchestratorService = {
       SENT: "SENT",
       ANSWERED: "ANSWERED",
       NO_ANSWER: "NO_ANSWER",
+      MISSED: "MISSED",
+      ABANDONED: "ABANDONED",
       FAILED: "FAILED",
     };
 
@@ -186,17 +190,19 @@ export const orchestratorService = {
       });
     }
 
-    if (input.direction === "INBOUND" && updated.status !== "ANSWERED") {
-      await notifyStaff({
-        channel: "orchestrator",
-        source: "INBOUND_CALL_HUMAN_REVIEW",
-        sourceKey: `inbound-call-review:${updated.id}`,
-        title: "Inbound call needs review",
-        message: `Inbound call status: ${updated.status}. Staff review required.`,
+    if (
+      input.direction === "INBOUND" &&
+      isMissedInboundCallStatus(updated.status)
+    ) {
+      await missedCallService.captureMissedInboundCall({
+        phoneNumber: phone,
+        status: updated.status,
         clientId: input.clientId,
-        appointmentId: input.appointmentId ?? undefined,
-        metadata: { callLogId: updated.id },
-        createdByUserId: ctx.userId,
+        appointmentId: input.appointmentId,
+        callLogId: updated.id,
+        externalRef: stub.externalRef,
+        triggerReason: "voice_ai_connection_failed",
+        systemUserId: ctx.userId,
       });
     }
 

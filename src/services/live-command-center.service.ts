@@ -83,6 +83,7 @@ export const liveCommandCenterService = {
 
     const urgent = notifications.filter(
       (n) =>
+        n.source === "MISSED_INBOUND_CALL" ||
         n.priority === "CRITICAL" ||
         n.category === "URGENT" ||
         n.category === "EMERGENCY"

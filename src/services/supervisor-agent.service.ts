@@ -362,4 +362,49 @@ export const supervisorAgentService = {
       },
     };
   },
+
+  /** Observe-only — recommendation + audit; no direct staff notification. */
+  async observeMissedInboundCall(input: {
+    clientId: string;
+    callLogId: string;
+    phoneKey: string;
+    status: string;
+    recentCount1h: number;
+    escalateToManager: boolean;
+  }) {
+    const rec = await createRecommendation({
+      code: "MISSED_INBOUND_CALL",
+      title: "Missed inbound call — callback recommended",
+      description: `Call log ${input.callLogId} ended as ${input.status}. ${input.recentCount1h} missed attempt(s) from this number in the last hour.`,
+      correctiveAction:
+        "Front desk should call the patient back and document the outcome in the chart.",
+      clientId: input.clientId,
+    });
+
+    await createAuditLog({
+      action: "CREATE",
+      entityType: "SupervisorObservation",
+      entityId: rec.id,
+      clientId: input.clientId,
+      metadata: sanitizeMetadataForAudit({
+        kind: "missed_inbound_call",
+        callLogId: input.callLogId,
+        phoneKey: input.phoneKey,
+        recentCount1h: input.recentCount1h,
+        escalateToManager: input.escalateToManager,
+      }),
+    });
+
+    if (input.escalateToManager) {
+      await adminAlertService.create({
+        code: "MISSED_INBOUND_CALL_REPEAT",
+        title: "Repeated missed inbound calls",
+        message: `${input.recentCount1h} missed call(s) from the same number within 1 hour — manager review suggested.`,
+        severity: "WARNING",
+        clientId: input.clientId,
+      });
+    }
+
+    return rec;
+  },
 };

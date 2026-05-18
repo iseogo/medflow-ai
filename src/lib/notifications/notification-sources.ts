@@ -21,6 +21,12 @@ export const NOTIFICATION_SOURCE_DEFAULTS: Record<NotificationSource, SourceDefa
     roles: ["FRONT_DESK_STAFF", "MANAGER"],
     recommendedNextAction: "Review inbound call and assist caller",
   },
+  MISSED_INBOUND_CALL: {
+    category: "ACTION_REQUIRED",
+    priority: "HIGH",
+    roles: ["FRONT_DESK_STAFF", "MANAGER"],
+    recommendedNextAction: "Call patient back and document outcome",
+  },
   OUTBOUND_CALL_FAILED: {
     category: "WARNING",
     priority: "MEDIUM",

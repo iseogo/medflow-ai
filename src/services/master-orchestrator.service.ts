@@ -308,6 +308,17 @@ export const masterOrchestratorService = {
       });
     }
 
+    if (
+      proposal.actionType === "CREATE_STAFF_TASK" &&
+      proposal.purpose === "missed_inbound_call_follow_up"
+    ) {
+      return this.applyReview(proposalId, "APPROVE", {
+        orchestratorNotes: "Auto-approved: missed inbound call follow-up task",
+        reviewerLabel: "Master Orchestrator Agent",
+        autoExecute: true,
+      });
+    }
+
     return prisma.agentAction.findUnique({ where: { id: proposalId } });
   },
 
@@ -571,16 +582,27 @@ export const masterOrchestratorService = {
         if (!creator) {
           throw new MasterOrchestratorError("No user to assign task creator", "NO_USER");
         }
-        await prisma.staffTask.create({
-          data: {
-            title: String(payload.title ?? `AI task: ${proposal.purpose}`),
-            description: proposal.description,
-            clientId: proposal.clientId,
-            createdById: creator,
-            priority: (payload.priority as StaffTaskPriority) ?? "HIGH",
-            staffOverride: ctx.staffOverride ?? false,
-          },
-        });
+        {
+          const dueMinutes = Number(payload.dueAtMinutes ?? 0);
+          const dueAt =
+            dueMinutes > 0
+              ? new Date(Date.now() + dueMinutes * 60_000)
+              : undefined;
+          const phoneKey = payload.phoneKey as string | undefined;
+          await prisma.staffTask.create({
+            data: {
+              title: String(payload.title ?? `AI task: ${proposal.purpose}`),
+              description:
+                proposal.description ??
+                (phoneKey ? `Callback phone key: ${phoneKey}` : undefined),
+              clientId: proposal.clientId,
+              createdById: creator,
+              priority: (payload.priority as StaffTaskPriority) ?? "HIGH",
+              dueAt,
+              staffOverride: ctx.staffOverride ?? false,
+            },
+          });
+        }
         break;
       }
       case "CREATE_STAFF_INTERVENTION": {

@@ -1,8 +1,13 @@
 import { CommunicationStatus } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { createAuditLog } from "@/lib/audit";
+import {
+  isMissedInboundCallStatus,
+  mapInboundStatusToMissed,
+} from "@/lib/missed-call/missed-call-statuses";
 import { notifyStaff } from "@/lib/notifications/notification-bridge";
 import { prisma } from "@/lib/prisma";
+import { missedCallService } from "@/services/missed-call.service";
 import {
   readWebhookBody,
   validateMedflowWebhookSecret,
@@ -31,16 +36,12 @@ function mapTwilioSmsStatus(status: string): CommunicationStatus {
 }
 
 function mapTwilioCallStatus(status: string): CommunicationStatus {
+  const missed = mapInboundStatusToMissed(status);
+  if (missed) return missed;
   switch (status.toLowerCase()) {
     case "completed":
     case "in-progress":
       return "ANSWERED";
-    case "busy":
-    case "no-answer":
-    case "canceled":
-      return "NO_ANSWER";
-    case "failed":
-      return "FAILED";
     default:
       return "SENT";
   }
@@ -129,28 +130,61 @@ async function applyWebhookSideEffects(
         where: callLogId ? { id: callLogId } : { externalRef: callSid },
         data: callData,
       });
-      if (updated.count > 0 && callData.status === "FAILED") {
+      if (updated.count > 0) {
         const log = await prisma.callLog.findFirst({
           where: callLogId ? { id: callLogId } : { externalRef: callSid },
         });
         if (log) {
-          await notifyStaff({
-            channel: "system",
-            source:
-              eventType === "inbound-call" ? "INBOUND_CALL_HUMAN_REVIEW" : "OUTBOUND_CALL_FAILED",
-            sourceKey: `webhook-call-failed:${log.id}`,
-            title:
-              eventType === "inbound-call"
-                ? "Inbound call needs review"
-                : "Outbound call failed",
-            message: `Call status update: ${callStatus}`,
-            clientId: log.clientId,
-            appointmentId: log.appointmentId ?? undefined,
-            metadata: { callLogId: log.id, eventType },
-          }).catch(() => undefined);
+          if (
+            eventType === "inbound-call" &&
+            isMissedInboundCallStatus(callData.status)
+          ) {
+            const from = String(payload.From ?? payload.from ?? log.phoneNumber ?? "");
+            await missedCallService
+              .captureMissedInboundCall({
+                phoneNumber: from || log.phoneNumber || "+10000000000",
+                status: callData.status,
+                clientId: log.clientId,
+                appointmentId: log.appointmentId,
+                callLogId: log.id,
+                externalRef: callSid || undefined,
+                triggerReason:
+                  callStatus.toLowerCase() === "failed"
+                    ? "n8n_inbound_workflow_failure"
+                    : "status_update",
+              })
+              .catch(() => undefined);
+          } else if (callData.status === "FAILED" && eventType !== "inbound-call") {
+            await notifyStaff({
+              channel: "orchestrator",
+              source: "OUTBOUND_CALL_FAILED",
+              sourceKey: `webhook-call-failed:${log.id}`,
+              title: "Outbound call failed",
+              message: `Call status update: ${callStatus}`,
+              clientId: log.clientId,
+              appointmentId: log.appointmentId ?? undefined,
+              metadata: { callLogId: log.id, eventType },
+            }).catch(() => undefined);
+          }
         }
       }
     }
+  }
+
+  if (eventType === "inbound-call" && payload.workflowFailed === true) {
+    const phone = String(payload.From ?? payload.from ?? payload.phoneNumber ?? "");
+    const status =
+      mapInboundStatusToMissed(String(payload.status ?? "failed")) ?? "FAILED";
+    await missedCallService
+      .captureMissedInboundCall({
+        phoneNumber: phone || "+10000000000",
+        status,
+        clientId: String(payload.clientId ?? "") || undefined,
+        appointmentId: String(payload.appointmentId ?? "") || undefined,
+        callLogId: callLogId || undefined,
+        triggerReason: "n8n_inbound_workflow_failure",
+      })
+      .catch(() => undefined);
   }
 
   if (eventType === "email" && emailLogId) {

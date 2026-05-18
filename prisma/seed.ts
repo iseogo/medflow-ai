@@ -175,6 +175,17 @@ async function main() {
     },
   });
 
+  await prisma.client.upsert({
+    where: { mrn: "INBOUND-UNKNOWN" },
+    update: {},
+    create: {
+      firstName: "Inbound",
+      lastName: "Unknown",
+      mrn: "INBOUND-UNKNOWN",
+      phone: "+10000000000",
+    },
+  });
+
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   tomorrow.setHours(10, 0, 0, 0);

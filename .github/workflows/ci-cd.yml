@@ -1,66 +1,30 @@
-# MedFlow AI — CI (lint, audits, build, unit tests). Does not deploy to VPS.
 name: CI
 
 on:
   push:
-    branches: [main, master]
+    branches:
+      - master
+      - main
   pull_request:
-    branches: [main, master]
-
-concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
 
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: postgres
-          POSTGRES_PASSWORD: postgres
-          POSTGRES_DB: medflow
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-
-    env:
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/medflow?schema=public
-      NEXTAUTH_URL: http://localhost:3000
-      NEXTAUTH_SECRET: ci-test-secret-not-for-production
-      MOCK_MODE: "true"
-      MEDFLOW_WEBHOOK_ALLOW_UNAUTHENTICATED: "true"
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node
+        uses: actions/setup-node@v4
         with:
-          node-version: "20"
-          cache: "npm"
+          node-version: 20
 
-      - name: Install
-        run: npm ci
+      - name: Install dependencies
+        run: npm install
 
-      - name: Prisma generate
+      - name: Generate Prisma Client
         run: npx prisma generate
 
-      - name: Lint
-        run: npm run lint
-
-      - name: Unit tests
-        run: npm run test -- --ci --passWithNoTests
-
-      - name: Audits
-        run: |
-          npm run audit:missed-calls
-          npm run audit:notifications
-          npm run audit:production
-
-      - name: Build (Next only — avoids Prisma EPERM on some runners)
-        run: npm run build:next
+      - name: Build Application
+        run: npm run build

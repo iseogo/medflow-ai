@@ -204,6 +204,33 @@ export const missedCallService = {
       },
     });
 
+    const voiceNoteCallLogId = callLog.id;
+    await masterOrchestratorService
+      .submitProposal(
+        {
+          agentType: "VOICE_CALL_AI",
+          clientId,
+          appointmentId: input.appointmentId,
+          channel: "CALL",
+          purpose: "inbound_missed_call_observed",
+          actionType: "LOG_NOTE",
+          description: `Inbound missed call observed (${input.status}).`,
+          proposedPayload: {
+            callLogId: voiceNoteCallLogId,
+            phoneKey,
+            status: input.status,
+            triggerReason: input.triggerReason,
+          },
+        },
+        { userId: systemUserId }
+      )
+      .catch((err) => {
+        logger.warn("missed_call_voice_ai_note_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          callLogId: voiceNoteCallLogId,
+        });
+      });
+
     if (identified) {
       await recordCommunicationTimelineAndAudit({
         clientId,

@@ -103,6 +103,16 @@ function auditStatic() {
   if (svc.includes("STAFF_ASSISTANT_AI")) {
     ok("STAFF_ASSISTANT_AI proposes task (not direct notification agent)");
   }
+  if (!svc.includes("VOICE_CALL_AI") || !svc.includes("inbound_missed_call_observed")) {
+    fail("VOICE_CALL_AI LOG_NOTE for missed inbound coordination visibility missing");
+  } else {
+    ok("VOICE_CALL_AI observes missed inbound via orchestrator LOG_NOTE");
+  }
+  if (!existsSync(path.join(process.cwd(), "src/lib/agents/agent-registry.ts"))) {
+    fail("agent-registry.ts missing");
+  } else {
+    ok("Agent registry documents missed-call handoff chain");
+  }
 
   const orchestrator = read("src/services/master-orchestrator.service.ts");
   if (!orchestrator.includes("missed_inbound_call_follow_up")) {

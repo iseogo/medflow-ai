@@ -5,6 +5,7 @@ import { ProposalStatusBadge } from "@/components/ui/ProposalStatusBadge";
 import { AGENT_TYPE_LABELS } from "@/lib/constants";
 import { prisma } from "@/lib/prisma";
 import { formatDate, formatName } from "@/lib/utils";
+import { agentHealthService } from "@/services/agent-health.service";
 
 type ProposalRow = Awaited<ReturnType<typeof loadProposals>>[number];
 
@@ -108,8 +109,60 @@ function StatPill({
   );
 }
 
+function AgentHealthTable({
+  agents,
+}: {
+  agents: Awaited<ReturnType<typeof agentHealthService.getHealthReport>>["agents"];
+}) {
+  const tone: Record<string, string> = {
+    healthy: "text-emerald-700 bg-emerald-50 border-emerald-200",
+    idle: "text-slate-600 bg-slate-50 border-slate-200",
+    degraded: "text-amber-800 bg-amber-50 border-amber-200",
+    misconfigured: "text-red-800 bg-red-50 border-red-200",
+  };
+  return (
+    <DataTable>
+      <Table>
+        <thead>
+          <tr>
+            <Th>Agent</Th>
+            <Th>Status</Th>
+            <Th>Proposals (7d)</Th>
+            <Th>Pending</Th>
+            <Th>Notes</Th>
+          </tr>
+        </thead>
+        <tbody>
+          {agents.map((a) => (
+            <tr key={a.agentType} className="hover:bg-slate-50">
+              <Td className="font-medium">
+                {AGENT_TYPE_LABELS[a.agentType] ?? a.displayName}
+              </Td>
+              <Td>
+                <span
+                  className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${tone[a.status]}`}
+                >
+                  {a.status}
+                </span>
+              </Td>
+              <Td>{a.recentProposals}</Td>
+              <Td>{a.pendingProposals}</Td>
+              <Td className="text-xs text-slate-500">
+                {a.notes.length ? a.notes.join("; ") : "—"}
+              </Td>
+            </tr>
+          ))}
+        </tbody>
+      </Table>
+    </DataTable>
+  );
+}
+
 export default async function AgentCoordinationPage() {
-  const all = await loadProposals();
+  const [all, health] = await Promise.all([
+    loadProposals(),
+    agentHealthService.getHealthReport(),
+  ]);
 
   const pending = all.filter((a) => a.proposalStatus === "PENDING_APPROVAL");
   const approved = all.filter(
@@ -155,6 +208,16 @@ export default async function AgentCoordinationPage() {
           <StatPill label="Rejected" value={rejected.length} tone="slate" />
           <StatPill label="Escalated" value={escalated.length} tone="red" />
         </div>
+
+        <section className="mb-10">
+          <h3 className="mb-2 text-lg font-semibold text-slate-900">Agent health</h3>
+          <p className="mb-4 text-sm text-slate-600">
+            Registry wiring and 7-day proposal activity. MOCK_MODE:{" "}
+            {health.mockMode ? "on" : "off"} — registry{" "}
+            {health.registryComplete ? "complete" : "incomplete"}.
+          </p>
+          <AgentHealthTable agents={health.agents} />
+        </section>
 
         <div className="space-y-10">
           <section>

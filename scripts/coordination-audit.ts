@@ -273,6 +273,26 @@ function auditAiAgentCollaboration() {
   if (master.includes('proposalStatus: "EXECUTED"') && master.includes("CREATE_STAFF_INTERVENTION")) {
     pass("ai_agent", "Escalation path can create staff intervention");
   }
+
+  const missed = readFileSync(
+    path.join(process.cwd(), "src/services/missed-call.service.ts"),
+    "utf8"
+  );
+  if (
+    !missed.includes("STAFF_ASSISTANT_AI") ||
+    !missed.includes("observeMissedInboundCall") ||
+    !missed.includes('channel: "orchestrator"')
+  ) {
+    critical("ai_agent", "Missed inbound handoff chain incomplete");
+  } else {
+    pass("ai_agent", "Missed inbound: task agent + orchestrator notify + supervisor observe");
+  }
+
+  if (!existsSync(path.join(process.cwd(), "src/lib/agents/agent-registry.ts"))) {
+    warn("ai_agent", "agent-registry.ts missing");
+  } else {
+    pass("ai_agent", "Central agent registry present");
+  }
 }
 
 function auditActionConsistencyStatic() {

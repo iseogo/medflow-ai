@@ -15,7 +15,6 @@ export default function LoginPage() {
             staff coordination in one place.
           </p>
         </div>
-        <p className="text-sm text-medflow-200">Phase 1 Foundation</p>
       </aside>
       <div className="flex w-full flex-col justify-center px-8 lg:w-1/2 lg:px-16">
         <div className="mx-auto w-full max-w-md">

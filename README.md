@@ -75,6 +75,12 @@ Open http://localhost:3000 and sign in with the seeded admin (see table below).
 
 > Stop the dev server before `npm run build` if Prisma reports a file-lock (`EPERM`) on Windows.
 
+## Testing & CI
+
+- **Unit tests:** `npm run test` (Jest + `next/jest`). Retell webhook and missed-call handler tests live under `**/__tests__/**`.
+- **CI:** GitHub Actions workflow `.github/workflows/ci-cd.yml` runs lint, tests, audits, and `build:next` (no blind VPS deploy).
+- **Deploy:** see `DEPLOYMENT.md` → **`README-DEPLOYMENT.md`**. Phase index: **`PHASE-0-REFERENCE.md`**.
+
 ## Phase 1 verification
 
 ```bash

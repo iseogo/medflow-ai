@@ -61,7 +61,9 @@ export const inboundCallsService = {
       orderBy: { createdAt: "desc" },
       take: limit,
       include: {
-        client: { select: { firstName: true, lastName: true, mrn: true } },
+        client: {
+          select: { firstName: true, lastName: true, mrn: true },
+        },
       },
     });
 
@@ -142,7 +144,10 @@ export const inboundCallsService = {
           notificationPriority: notification?.priority,
           notificationMeta: notifMeta,
         }),
-        clientLabel: `${call.client.firstName} ${call.client.lastName}`,
+        clientLabel:
+          call.client.mrn === "INBOUND-UNKNOWN"
+            ? "Unknown caller"
+            : `${call.client.firstName} ${call.client.lastName}`,
       };
     });
   },

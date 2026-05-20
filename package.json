@@ -37,6 +37,7 @@
     "audit:deployment": "tsx scripts/deployment-audit.ts",
     "audit:missed-calls": "tsx scripts/missed-calls-audit.ts",
     "audit:agent-system": "tsx scripts/agent-system-audit.ts",
+    "audit:inbound-calls": "tsx scripts/inbound-call-coordination-audit.ts",
     "backfill:appointment-events": "tsx scripts/backfill-appointment-created-events.ts",
     "generate:n8n-workflows": "tsx scripts/generate-n8n-workflows.ts",
     "postinstall": "prisma generate"

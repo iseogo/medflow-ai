@@ -1,6 +1,7 @@
 import { CommunicationStatus } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { createAuditLog } from "@/lib/audit";
+import { inboundCallDebug } from "@/lib/inbound-call/inbound-call-debug";
 import { logger } from "@/lib/logger";
 import {
   isMissedInboundCallStatus,
@@ -122,11 +123,16 @@ async function applyWebhookSideEffects(
   }
 
   if (eventType === "inbound-call") {
+    inboundCallDebug("medflow_inbound_webhook", {
+      callSid: callSid || undefined,
+      status: String(payload.CallStatus ?? payload.status ?? ""),
+    });
     try {
       const result = await processInboundMissedWebhook(payload, {
         provider: "medflow_inbound",
       });
       missedCallRecorded = result.recorded;
+      inboundCallDebug("medflow_inbound_result", { recorded: result.recorded });
     } catch (err) {
       logger.error("inbound_call_missed_webhook_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -271,14 +277,14 @@ export async function handleTwilioVoiceWebhook(
   const duration = params.get("CallDuration");
   const direction = (params.get("Direction") ?? "").toLowerCase();
 
-  logger.info("twilio_voice_webhook", { callSid, status, direction });
+  inboundCallDebug("twilio_voice_webhook", { callSid, status, direction });
 
   const isInbound =
     direction.includes("inbound") || direction === "" || !direction.includes("outbound");
 
   if (isInbound) {
     try {
-      await processInboundMissedWebhook(
+      const result = await processInboundMissedWebhook(
         {
           ...payload,
           CallSid: callSid,
@@ -286,6 +292,10 @@ export async function handleTwilioVoiceWebhook(
         },
         { provider: "twilio" }
       );
+      inboundCallDebug("twilio_voice_missed_result", {
+        callSid,
+        recorded: result.recorded,
+      });
     } catch (err) {
       logger.error("twilio_voice_missed_capture_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -296,15 +306,26 @@ export async function handleTwilioVoiceWebhook(
 
   if (callSid && status) {
     const mapped = mapTwilioCallStatus(status);
-    const updated = await prisma.callLog.updateMany({
+    await prisma.callLog.updateMany({
       where: { externalRef: callSid },
       data: {
         status: mapped,
         durationSeconds: duration ? parseInt(duration, 10) : undefined,
       },
     });
-
   }
+
+  await createAuditLog({
+    action: "CREATE",
+    entityType: "WebhookEvent",
+    entityId: "twilio-voice",
+    metadata: {
+      callSid,
+      status,
+      direction,
+      isInbound,
+    },
+  });
 
   return new NextResponse("<Response></Response>", {
     status: 200,

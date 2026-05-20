@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAuditLog } from "@/lib/audit";
+import { inboundCallDebug } from "@/lib/inbound-call/inbound-call-debug";
 import { logger } from "@/lib/logger";
 import {
   readWebhookBody,
@@ -25,9 +26,9 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  logger.info("retell_webhook_received", {
-    keys: Object.keys(payload),
-    event: payload.event ?? payload.type,
+  inboundCallDebug("retell_webhook_received", {
+    keyCount: Object.keys(payload).length,
+    event: String(payload.event ?? payload.type ?? ""),
   });
 
   let missedCallRecorded = false;

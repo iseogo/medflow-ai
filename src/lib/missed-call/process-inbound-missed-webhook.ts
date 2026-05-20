@@ -1,3 +1,4 @@
+import { inboundCallDebug } from "@/lib/inbound-call/inbound-call-debug";
 import { logger } from "@/lib/logger";
 import {
   parseInboundMissedWebhookPayload,
@@ -15,12 +16,18 @@ export async function processInboundMissedWebhook(
   });
 
   if (!parsed) {
-    logger.debug("missed_call_webhook_skip", {
+    inboundCallDebug("webhook_skip_not_missed", {
       provider: options?.provider,
-      keys: Object.keys(payload),
+      keyCount: Object.keys(payload).length,
     });
     return { recorded: false as const, reason: "not_missed_status" as const };
   }
+
+  inboundCallDebug("webhook_parsed_missed", {
+    provider: options?.provider,
+    status: parsed.status,
+    phoneSuffix: parsed.phoneNumber.slice(-4),
+  });
 
   return recordParsedMissedInbound(parsed, options?.provider);
 }

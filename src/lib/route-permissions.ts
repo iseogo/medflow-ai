@@ -24,6 +24,7 @@ export const DASHBOARD_ROUTE_RULES: RouteRule[] = [
   { prefix: "/dashboard/medical-records", permissions: ["medical-records:read"] },
   { prefix: "/dashboard/billing", permissions: ["billing:read"] },
   { prefix: "/dashboard/clinical-notes", permissions: ["clinical-notes:read"] },
+  { prefix: "/dashboard/inbound-calls", permissions: ["communications:read"] },
   { prefix: "/dashboard/calls", permissions: ["communications:read"] },
   { prefix: "/dashboard/outbound-calls", permissions: ["communications:read"] },
   { prefix: "/dashboard/sms", permissions: ["communications:read"] },

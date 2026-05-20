@@ -5,7 +5,7 @@ const TASK_DEDUP_MINUTES = 30;
 const ESCALATION_WINDOW_MS = 60 * 60 * 1000;
 const ESCALATION_THRESHOLD = 3;
 
-const MISSED_TASK_TITLE = "Missed inbound call — call patient back";
+export const MISSED_TASK_TITLE = "Missed inbound call — call patient back";
 
 export type MissedCallDedupResult = {
   skipNewTask: boolean;
@@ -59,4 +59,4 @@ export async function assessMissedCallDedup(
   };
 }
 
-export { MISSED_TASK_TITLE, TASK_DEDUP_MINUTES, ESCALATION_THRESHOLD };
+export { TASK_DEDUP_MINUTES, ESCALATION_THRESHOLD };

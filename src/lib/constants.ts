@@ -73,6 +73,8 @@ export const COMMUNICATION_STATUS_LABELS: Record<string, string> = {
   ANSWERED: "Answered",
   FAILED: "Failed",
   NO_ANSWER: "No Answer",
+  MISSED: "Missed",
+  ABANDONED: "Abandoned",
   BOUNCED: "Bounced",
   RESPONDED: "Responded",
   ESCALATED: "Escalated",

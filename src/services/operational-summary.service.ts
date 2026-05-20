@@ -1,6 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import { getOperationalDayBounds } from "@/lib/command-center/day-bounds";
 import { ACTIVE_WAITING_ROOM_STATES } from "@/lib/waiting-room";
+import {
+  MISSED_INBOUND_STATUSES,
+  MISSED_CALL_PURPOSE,
+  openMissedInboundCallLogWhere,
+} from "@/services/missed-call.service";
 
 const DELAYED_WAIT_MINUTES = 30;
 const LOOKBACK_7D = new Date(Date.now() - 7 * 86400_000);
@@ -160,16 +165,14 @@ export const operationalSummaryService = {
       }),
       prisma.reminderLog.count({ where: { createdAt: { gte: LOOKBACK_7D } } }),
       prisma.callLog.count({ where: { status: "PENDING" } }),
-      prisma.staffNotification.count({
-        where: {
-          source: "MISSED_INBOUND_CALL",
-          status: { notIn: ["RESOLVED", "DISMISSED"] },
-        },
+      prisma.callLog.count({
+        where: openMissedInboundCallLogWhere(),
       }),
       prisma.callLog.count({
         where: {
           direction: "INBOUND",
-          status: { in: ["NO_ANSWER", "MISSED", "ABANDONED", "FAILED"] },
+          purpose: MISSED_CALL_PURPOSE,
+          status: { in: MISSED_INBOUND_STATUSES },
           createdAt: { gte: todayStart, lte: todayEnd },
         },
       }),

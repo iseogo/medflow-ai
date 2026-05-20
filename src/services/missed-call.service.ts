@@ -14,12 +14,30 @@ import {
   isMissedInboundCallStatus,
   type MissedCallTriggerReason,
 } from "@/lib/missed-call/missed-call-statuses";
+import { logger } from "@/lib/logger";
+import { buildMissedCallMetadata } from "@/lib/missed-call/missed-call-metadata";
 import { notifyStaff } from "@/lib/notifications/notification-bridge";
 import { prisma } from "@/lib/prisma";
 import { masterOrchestratorService } from "./master-orchestrator.service";
 import { supervisorAgentService } from "./supervisor-agent.service";
 
-const MISSED_CALL_PURPOSE = "missed_inbound_call_follow_up";
+export const MISSED_CALL_PURPOSE = "missed_inbound_call_follow_up";
+
+export const MISSED_INBOUND_STATUSES: CommunicationStatus[] = [
+  "NO_ANSWER",
+  "MISSED",
+  "ABANDONED",
+  "FAILED",
+];
+
+/** Prisma filter for open missed inbound rows in analytics. */
+export function openMissedInboundCallLogWhere() {
+  return {
+    direction: "INBOUND" as const,
+    status: { in: MISSED_INBOUND_STATUSES },
+    purpose: MISSED_CALL_PURPOSE,
+  };
+}
 const FOLLOW_UP_DUE_MINUTES = 15;
 const INBOUND_UNKNOWN_MRN = "INBOUND-UNKNOWN";
 
@@ -110,6 +128,24 @@ export const missedCallService = {
       input.clientId
     );
 
+    logger.info("missed_call_service_capture", {
+      status: input.status,
+      triggerReason: input.triggerReason,
+      phoneKey,
+      callLogId: input.callLogId,
+      clientIdentified: identified,
+    });
+
+    const metadataBase = buildMissedCallMetadata({
+      phoneNumber: input.phoneNumber,
+      phoneKey,
+      status: input.status,
+      triggerReason: input.triggerReason,
+      clientIdentified: identified,
+      externalRef: input.externalRef ?? undefined,
+      provider: input.externalRef ? "twilio" : undefined,
+    });
+
     let callLog = input.callLogId
       ? await prisma.callLog.findUnique({ where: { id: input.callLogId } })
       : null;
@@ -121,15 +157,19 @@ export const missedCallService = {
           status: input.status,
           phoneNumber: input.phoneNumber,
           direction: "INBOUND",
-          metadata: {
-            ...(typeof callLog.metadata === "object" && callLog.metadata
-              ? (callLog.metadata as Record<string, unknown>)
-              : {}),
-            missedCall: true,
-            triggerReason: input.triggerReason,
+          purpose: MISSED_CALL_PURPOSE,
+          metadata: buildMissedCallMetadata({
+            phoneNumber: input.phoneNumber,
             phoneKey,
+            status: input.status,
+            triggerReason: input.triggerReason,
             clientIdentified: identified,
-          },
+            externalRef: input.externalRef ?? undefined,
+            existing:
+              typeof callLog.metadata === "object" && callLog.metadata
+                ? (callLog.metadata as Record<string, unknown>)
+                : null,
+          }),
         },
       });
     } else {
@@ -143,14 +183,10 @@ export const missedCallService = {
           status: input.status,
           externalRef: input.externalRef ?? undefined,
           initiatedById: systemUserId,
-          metadata: {
-            missedCall: true,
-            triggerReason: input.triggerReason,
-            phoneKey,
-            clientIdentified: identified,
-          },
+          metadata: metadataBase,
         },
       });
+      logger.info("missed_call_calllog_created", { callLogId: callLog.id, clientId });
     }
 
     await createAuditLog({
@@ -193,6 +229,21 @@ export const missedCallService = {
     let staffTaskId: string | undefined = dedup.existingTaskId;
 
     if (!dedup.skipNewTask) {
+      await prisma.callLog.update({
+        where: { id: callLog.id },
+        data: {
+          metadata: buildMissedCallMetadata({
+            phoneNumber: input.phoneNumber,
+            phoneKey,
+            status: input.status,
+            triggerReason: input.triggerReason,
+            clientIdentified: identified,
+            aiFollowUpStatus: "ORCHESTRATOR_QUEUED",
+            existing: callLog.metadata as Record<string, unknown> | null,
+          }),
+        },
+      });
+
       await masterOrchestratorService.submitProposal(
         {
           agentType: "STAFF_ASSISTANT_AI",
@@ -241,6 +292,21 @@ export const missedCallService = {
       ? ("MANAGER" as const)
       : ("FRONT_DESK_STAFF" as const);
 
+    callLog = await prisma.callLog.update({
+      where: { id: callLog.id },
+      data: {
+        metadata: buildMissedCallMetadata({
+          phoneNumber: input.phoneNumber,
+          phoneKey,
+          status: input.status,
+          triggerReason: input.triggerReason,
+          clientIdentified: identified,
+          aiFollowUpStatus: "NOTIFICATION_SENT",
+          existing: callLog.metadata as Record<string, unknown> | null,
+        }),
+      },
+    });
+
     const notification = await notifyStaff({
       channel: "orchestrator",
       source: "MISSED_INBOUND_CALL",
@@ -283,16 +349,37 @@ export const missedCallService = {
       });
     }
 
+    const savedCallLogId = callLog.id;
     await supervisorAgentService
       .observeMissedInboundCall({
         clientId,
-        callLogId: callLog.id,
+        callLogId: savedCallLogId,
         phoneKey,
         status: input.status,
         recentCount1h: dedup.recentCount1h,
         escalateToManager: dedup.escalateToManager,
       })
-      .catch(() => undefined);
+      .catch((err) => {
+        logger.warn("missed_call_supervisor_observe_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          callLogId: savedCallLogId,
+        });
+      });
+
+    callLog = await prisma.callLog.update({
+      where: { id: callLog.id },
+      data: {
+        metadata: buildMissedCallMetadata({
+          phoneNumber: input.phoneNumber,
+          phoneKey,
+          status: input.status,
+          triggerReason: input.triggerReason,
+          clientIdentified: identified,
+          aiFollowUpStatus: "SUPERVISOR_OBSERVED",
+          existing: callLog.metadata as Record<string, unknown> | null,
+        }),
+      },
+    });
 
     return {
       callLog,

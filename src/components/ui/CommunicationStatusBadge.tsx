@@ -11,6 +11,8 @@ const variantMap: Record<
   ANSWERED: "success",
   FAILED: "danger",
   NO_ANSWER: "warning",
+  MISSED: "warning",
+  ABANDONED: "warning",
   BOUNCED: "danger",
   RESPONDED: "purple",
   ESCALATED: "warning",

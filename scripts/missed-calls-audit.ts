@@ -112,10 +112,13 @@ function auditStatic() {
   }
 
   const webhook = read("src/lib/integrations/webhook-handler.ts");
-  if (!webhook.includes("missedCallService")) {
-    fail("Webhook handler must delegate inbound missed statuses to missedCallService");
+  if (
+    !webhook.includes("processInboundMissedWebhook") &&
+    !webhook.includes("missedCallService")
+  ) {
+    fail("Webhook handler must delegate inbound missed statuses to missed-call pipeline");
   } else {
-    ok("Webhook inbound missed statuses routed to missed-call service");
+    ok("Webhook inbound missed statuses routed to missed-call pipeline");
   }
   if (
     webhook.includes("INBOUND_CALL_HUMAN_REVIEW") &&

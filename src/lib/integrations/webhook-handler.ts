@@ -1,13 +1,14 @@
 import { CommunicationStatus } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { createAuditLog } from "@/lib/audit";
+import { logger } from "@/lib/logger";
 import {
   isMissedInboundCallStatus,
   mapInboundStatusToMissed,
 } from "@/lib/missed-call/missed-call-statuses";
+import { processInboundMissedWebhook } from "@/lib/missed-call/process-inbound-missed-webhook";
 import { notifyStaff } from "@/lib/notifications/notification-bridge";
 import { prisma } from "@/lib/prisma";
-import { missedCallService } from "@/services/missed-call.service";
 import {
   readWebhookBody,
   validateMedflowWebhookSecret,
@@ -75,7 +76,9 @@ export async function handleMedflowWebhook(
     }
   }
 
-  await applyWebhookSideEffects(eventType, payload);
+  logger.info("webhook_received", { eventType, payloadKeys: Object.keys(payload) });
+
+  const sideEffect = await applyWebhookSideEffects(eventType, payload);
 
   await createAuditLog({
     action: "CREATE",
@@ -84,21 +87,27 @@ export async function handleMedflowWebhook(
     metadata: {
       eventType,
       payloadKeyCount: Object.keys(payload).length,
+      missedCallRecorded: sideEffect.missedCallRecorded,
     },
   });
 
-  return NextResponse.json({ received: true, eventType });
+  return NextResponse.json({
+    received: true,
+    eventType,
+    missedCallRecorded: sideEffect.missedCallRecorded,
+  });
 }
 
 async function applyWebhookSideEffects(
   eventType: WebhookEventType,
   payload: Record<string, unknown>
-) {
+): Promise<{ missedCallRecorded: boolean }> {
   const callSid = String(payload.CallSid ?? payload.callSid ?? "");
   const messageSid = String(payload.MessageSid ?? payload.messageSid ?? "");
   const smsLogId = String(payload.smsLogId ?? "");
   const callLogId = String(payload.callLogId ?? "");
   const emailLogId = String(payload.emailLogId ?? "");
+  let missedCallRecorded = false;
 
   if (eventType === "sms" || eventType === "outbound-call") {
     const smsStatus = String(payload.MessageStatus ?? payload.status ?? "");
@@ -112,11 +121,35 @@ async function applyWebhookSideEffects(
     }
   }
 
-  if (
-    eventType === "inbound-call" ||
-    eventType === "outbound-call" ||
-    eventType === "reminders"
-  ) {
+  if (eventType === "inbound-call") {
+    try {
+      const result = await processInboundMissedWebhook(payload, {
+        provider: "medflow_inbound",
+      });
+      missedCallRecorded = result.recorded;
+    } catch (err) {
+      logger.error("inbound_call_missed_webhook_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+
+    const callStatus = String(payload.CallStatus ?? payload.status ?? "");
+    if ((callSid || callLogId) && callStatus) {
+      const callData: {
+        status: CommunicationStatus;
+        durationSeconds?: number;
+      } = { status: mapTwilioCallStatus(callStatus) };
+      if (payload.CallDuration) {
+        callData.durationSeconds = parseInt(String(payload.CallDuration), 10);
+      }
+      await prisma.callLog.updateMany({
+        where: callLogId ? { id: callLogId } : { externalRef: callSid },
+        data: callData,
+      });
+    }
+  }
+
+  if (eventType === "outbound-call" || eventType === "reminders") {
     const callStatus = String(payload.CallStatus ?? payload.status ?? "");
     if ((callSid || callLogId) && callStatus) {
       const callData: {
@@ -130,61 +163,28 @@ async function applyWebhookSideEffects(
         where: callLogId ? { id: callLogId } : { externalRef: callSid },
         data: callData,
       });
-      if (updated.count > 0) {
+      if (updated.count > 0 && callData.status === "FAILED") {
         const log = await prisma.callLog.findFirst({
           where: callLogId ? { id: callLogId } : { externalRef: callSid },
         });
         if (log) {
-          if (
-            eventType === "inbound-call" &&
-            isMissedInboundCallStatus(callData.status)
-          ) {
-            const from = String(payload.From ?? payload.from ?? log.phoneNumber ?? "");
-            await missedCallService
-              .captureMissedInboundCall({
-                phoneNumber: from || log.phoneNumber || "+10000000000",
-                status: callData.status,
-                clientId: log.clientId,
-                appointmentId: log.appointmentId,
-                callLogId: log.id,
-                externalRef: callSid || undefined,
-                triggerReason:
-                  callStatus.toLowerCase() === "failed"
-                    ? "n8n_inbound_workflow_failure"
-                    : "status_update",
-              })
-              .catch(() => undefined);
-          } else if (callData.status === "FAILED" && eventType !== "inbound-call") {
-            await notifyStaff({
-              channel: "orchestrator",
-              source: "OUTBOUND_CALL_FAILED",
-              sourceKey: `webhook-call-failed:${log.id}`,
-              title: "Outbound call failed",
-              message: `Call status update: ${callStatus}`,
-              clientId: log.clientId,
-              appointmentId: log.appointmentId ?? undefined,
-              metadata: { callLogId: log.id, eventType },
-            }).catch(() => undefined);
-          }
+          await notifyStaff({
+            channel: "orchestrator",
+            source: "OUTBOUND_CALL_FAILED",
+            sourceKey: `webhook-call-failed:${log.id}`,
+            title: "Outbound call failed",
+            message: `Call status update: ${callStatus}`,
+            clientId: log.clientId,
+            appointmentId: log.appointmentId ?? undefined,
+            metadata: { callLogId: log.id, eventType },
+          }).catch((e) => {
+            logger.warn("outbound_call_notify_failed", {
+              error: e instanceof Error ? e.message : String(e),
+            });
+          });
         }
       }
     }
-  }
-
-  if (eventType === "inbound-call" && payload.workflowFailed === true) {
-    const phone = String(payload.From ?? payload.from ?? payload.phoneNumber ?? "");
-    const status =
-      mapInboundStatusToMissed(String(payload.status ?? "failed")) ?? "FAILED";
-    await missedCallService
-      .captureMissedInboundCall({
-        phoneNumber: phone || "+10000000000",
-        status,
-        clientId: String(payload.clientId ?? "") || undefined,
-        appointmentId: String(payload.appointmentId ?? "") || undefined,
-        callLogId: callLogId || undefined,
-        triggerReason: "n8n_inbound_workflow_failure",
-      })
-      .catch(() => undefined);
   }
 
   if (eventType === "email" && emailLogId) {
@@ -221,6 +221,8 @@ async function applyWebhookSideEffects(
       });
     }
   }
+
+  return { missedCallRecorded };
 }
 
 export async function handleTwilioSmsWebhook(
@@ -263,18 +265,45 @@ export async function handleTwilioVoiceWebhook(
   if (!auth.ok) return auth.response;
 
   const params = new URLSearchParams(rawBody);
+  const payload = Object.fromEntries(params.entries());
   const callSid = params.get("CallSid") ?? "";
   const status = params.get("CallStatus") ?? "";
   const duration = params.get("CallDuration");
+  const direction = (params.get("Direction") ?? "").toLowerCase();
+
+  logger.info("twilio_voice_webhook", { callSid, status, direction });
+
+  const isInbound =
+    direction.includes("inbound") || direction === "" || !direction.includes("outbound");
+
+  if (isInbound) {
+    try {
+      await processInboundMissedWebhook(
+        {
+          ...payload,
+          CallSid: callSid,
+          CallStatus: status,
+        },
+        { provider: "twilio" }
+      );
+    } catch (err) {
+      logger.error("twilio_voice_missed_capture_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        callSid,
+      });
+    }
+  }
 
   if (callSid && status) {
-    await prisma.callLog.updateMany({
+    const mapped = mapTwilioCallStatus(status);
+    const updated = await prisma.callLog.updateMany({
       where: { externalRef: callSid },
       data: {
-        status: mapTwilioCallStatus(status),
+        status: mapped,
         durationSeconds: duration ? parseInt(duration, 10) : undefined,
       },
     });
+
   }
 
   return new NextResponse("<Response></Response>", {

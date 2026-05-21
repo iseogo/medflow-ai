@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { dashboardFetch } from "@/lib/api-fetch";
 import { Badge } from "@/components/ui/Badge";
 import {
   CLIENT_STATUS_LABELS,
@@ -42,7 +43,9 @@ export function ClientDetailActions({ client, canWrite }: Props) {
   async function deactivate() {
     if (!confirm("Deactivate this client?")) return;
     setSaving(true);
-    const res = await fetch(`/api/clients/${client.id}`, { method: "DELETE" });
+    const res = await dashboardFetch(`/api/clients/${client.id}`, {
+      method: "DELETE",
+    });
     const data = await res.json();
     setSaving(false);
     if (!res.ok) {
@@ -111,10 +114,10 @@ export function ClientDetailActions({ client, canWrite }: Props) {
       {canWrite && (
         <div className="mt-6 flex flex-wrap gap-2">
           <Link
-            href={`/dashboard/clients?edit=${client.id}`}
+            href="/dashboard/clients"
             className="medflow-btn-secondary text-sm"
           >
-            Edit on list
+            Back to list
           </Link>
           {client.isActive && (
             <button

@@ -11,10 +11,15 @@ import { logger } from "@/lib/logger";
 const preferredContact = z.enum(["PHONE", "EMAIL", "SMS"]).optional().nullable();
 const clientStatus = z.enum(["ACTIVE", "INACTIVE", "ARCHIVED"]).optional();
 
+const optionalEmail = z
+  .union([z.string().email(), z.literal(""), z.null()])
+  .optional()
+  .transform((v) => (v === "" || v === undefined ? null : v));
+
 const createSchema = z.object({
   firstName: z.string().min(1),
   lastName: z.string().min(1),
-  email: z.string().email().optional().nullable(),
+  email: optionalEmail,
   phone: z.string().optional().nullable(),
   dateOfBirth: z.string().optional().nullable(),
   mrn: z.string().optional().nullable(),

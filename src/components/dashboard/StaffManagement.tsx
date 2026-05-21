@@ -2,7 +2,8 @@
 
 import { RoleType, UserStatus } from "@prisma/client";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { dashboardFetch } from "@/lib/api-fetch";
 import { DataTable, Table, Td, Th } from "@/components/dashboard/DataTable";
 import { Badge } from "@/components/ui/Badge";
 import { ROLE_LABELS, USER_STATUS_LABELS } from "@/lib/constants";
@@ -30,9 +31,14 @@ function statusBadgeVariant(
 
 type Props = {
   initialStaff: PublicStaffUser[];
+  /** Open create form on mount (e.g. from ?action=create). */
+  openCreateOnMount?: boolean;
 };
 
-export function StaffManagement({ initialStaff }: Props) {
+export function StaffManagement({
+  initialStaff,
+  openCreateOnMount = false,
+}: Props) {
   const router = useRouter();
   const [staff, setStaff] = useState(initialStaff);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +57,21 @@ export function StaffManagement({ initialStaff }: Props) {
     forcePasswordReset: true,
     resetPassword: "",
   });
+
+  useEffect(() => {
+    if (openCreateOnMount) {
+      openCreate();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openCreateOnMount]);
+
+  async function reloadStaff() {
+    const res = await dashboardFetch("/api/staff");
+    const data = await res.json();
+    if (res.ok && Array.isArray(data)) {
+      setStaff(data);
+    }
+  }
 
   function openCreate() {
     setForm({
@@ -92,9 +113,8 @@ export function StaffManagement({ initialStaff }: Props) {
     setError(null);
     try {
       if (editId) {
-        const res = await fetch(`/api/staff/${editId}`, {
+        const res = await dashboardFetch(`/api/staff/${editId}`, {
           method: "PATCH",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             email: form.email,
             firstName: form.firstName,
@@ -110,9 +130,8 @@ export function StaffManagement({ initialStaff }: Props) {
         if (!res.ok) throw new Error(data.error ?? "Update failed");
         setStaff((prev) => prev.map((u) => (u.id === editId ? data : u)));
       } else {
-        const res = await fetch("/api/staff", {
+        const res = await dashboardFetch("/api/staff", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             email: form.email,
             firstName: form.firstName,
@@ -131,6 +150,7 @@ export function StaffManagement({ initialStaff }: Props) {
         );
       }
       setShowForm(false);
+      await reloadStaff();
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Request failed");
@@ -143,13 +163,13 @@ export function StaffManagement({ initialStaff }: Props) {
     if (!confirm("Deactivate this staff member? They will not be able to sign in.")) {
       return;
     }
-    const res = await fetch(`/api/staff/${id}`, { method: "DELETE" });
+    const res = await dashboardFetch(`/api/staff/${id}`, { method: "DELETE" });
     const data = await res.json();
     if (!res.ok) {
       setError(data.error ?? "Deactivate failed");
       return;
     }
-    setStaff((prev) => prev.map((u) => (u.id === id ? data : u)));
+    await reloadStaff();
     router.refresh();
   }
 
@@ -161,7 +181,7 @@ export function StaffManagement({ initialStaff }: Props) {
           with role-based access
         </p>
         <button type="button" onClick={openCreate} className="medflow-btn-primary">
-          Add staff member
+          + Add staff
         </button>
       </div>
 

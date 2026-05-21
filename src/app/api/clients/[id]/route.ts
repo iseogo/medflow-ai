@@ -17,7 +17,7 @@ const clientStatus = z.enum(["ACTIVE", "INACTIVE", "ARCHIVED"]).optional();
 const updateSchema = z.object({
   firstName: z.string().min(1).optional(),
   lastName: z.string().min(1).optional(),
-  email: z.string().email().optional().nullable(),
+  email: z.union([z.string().email(), z.literal(""), z.null()]).optional(),
   phone: z.string().optional().nullable(),
   dateOfBirth: z.string().optional().nullable(),
   mrn: z.string().optional().nullable(),
@@ -103,7 +103,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     }
   }
 
-  const { dateOfBirth, status, ...rest } = parsed.data;
+  const { dateOfBirth, status, email, ...rest } = parsed.data;
   const fieldKeys = Object.keys(parsed.data).filter(
     (k) => parsed.data[k as keyof typeof parsed.data] !== undefined
   );
@@ -112,6 +112,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     where: { id: params.id },
     data: {
       ...rest,
+      ...(email !== undefined && { email: email === "" ? null : email }),
       ...(dateOfBirth !== undefined && {
         dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
       }),

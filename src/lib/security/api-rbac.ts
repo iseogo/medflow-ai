@@ -42,6 +42,7 @@ const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 const WRITE_PERMISSION_OVERRIDES: Record<string, Permission> = {
   "/api/clients": "clients:write",
+  "/api/staff": "users:manage",
   "/api/appointments": "appointments:write",
   "/api/reminders/run": "reminders:write",
   "/api/supervisor/run": "supervisor:run",

@@ -6,21 +6,23 @@ import {
   ClientManagement,
   type ClientListRow,
 } from "@/components/dashboard/ClientManagement";
+import { ClientPageActions } from "@/components/dashboard/ClientPageActions";
 import { authOptions } from "@/lib/auth";
-import { hasAnyPermission, hasPermission } from "@/lib/rbac";
+import { canReadClients, canWriteClients, hasPermission } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 
-export default async function ClientsPage() {
+type PageProps = {
+  searchParams?: { action?: string };
+};
+
+export default async function ClientsPage({ searchParams }: PageProps) {
   const session = await getServerSession(authOptions);
   const role = session?.user?.role;
-  if (
-    !role ||
-    !hasAnyPermission(role, ["clients:read", "clients:read-limited"])
-  ) {
+  if (!role || !canReadClients(role)) {
     redirect("/dashboard/access-denied");
   }
 
-  const canWrite = hasPermission(role, "clients:write");
+  const canWrite = canWriteClients(role);
   const limited =
     !hasPermission(role, "clients:read") &&
     hasPermission(role, "clients:read-limited");
@@ -61,6 +63,8 @@ export default async function ClientsPage() {
     prisma.client.count(),
   ]);
 
+  const openCreate = searchParams?.action === "create" && canWrite;
+
   return (
     <>
       <Header title="Clients" />
@@ -68,12 +72,14 @@ export default async function ClientsPage() {
         <PageHeader
           title="Clients"
           description="Patient profiles with unified activity timelines"
+          action={<ClientPageActions canWrite={canWrite} />}
         />
         <ClientManagement
           initialClients={clients as ClientListRow[]}
           activeCount={activeCount}
           totalCount={totalCount}
           canWrite={canWrite}
+          openCreateOnMount={openCreate}
         />
       </div>
     </>

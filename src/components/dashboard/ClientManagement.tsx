@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { dashboardFetch } from "@/lib/api-fetch";
 import {
   DataTable,
   EmptyState,
@@ -44,6 +45,7 @@ type Props = {
   activeCount: number;
   totalCount: number;
   canWrite: boolean;
+  openCreateOnMount?: boolean;
 };
 
 const PREFERRED_OPTIONS = ["PHONE", "EMAIL", "SMS"] as const;
@@ -71,17 +73,37 @@ const emptyForm = {
 
 export function ClientManagement({
   initialClients,
-  activeCount,
-  totalCount,
+  activeCount: initialActiveCount,
+  totalCount: initialTotalCount,
   canWrite,
+  openCreateOnMount = false,
 }: Props) {
   const router = useRouter();
   const [clients, setClients] = useState(initialClients);
+  const [activeCount, setActiveCount] = useState(initialActiveCount);
+  const [totalCount, setTotalCount] = useState(initialTotalCount);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState(emptyForm);
+
+  useEffect(() => {
+    if (openCreateOnMount && canWrite) {
+      openCreate();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openCreateOnMount, canWrite]);
+
+  async function reloadClients() {
+    const res = await dashboardFetch("/api/clients");
+    const data = await res.json();
+    if (res.ok && Array.isArray(data.clients)) {
+      setClients(data.clients);
+      setActiveCount(data.activeCount ?? data.clients.filter((c: ClientListRow) => c.isActive).length);
+      setTotalCount(data.totalCount ?? data.clients.length);
+    }
+  }
 
   function openCreate() {
     setForm(emptyForm);
@@ -139,9 +161,8 @@ export function ClientManagement({
 
     try {
       if (editId) {
-        const res = await fetch(`/api/clients/${editId}`, {
+        const res = await dashboardFetch(`/api/clients/${editId}`, {
           method: "PATCH",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
         const data = await res.json();
@@ -158,9 +179,8 @@ export function ClientManagement({
           )
         );
       } else {
-        const res = await fetch("/api/clients", {
+        const res = await dashboardFetch("/api/clients", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
         });
         const data = await res.json();
@@ -172,6 +192,7 @@ export function ClientManagement({
         );
       }
       setShowForm(false);
+      await reloadClients();
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Request failed");
@@ -183,20 +204,25 @@ export function ClientManagement({
   async function deactivate(id: string) {
     if (!canWrite) return;
     if (!confirm("Deactivate this client? They will be marked inactive.")) return;
-    const res = await fetch(`/api/clients/${id}`, { method: "DELETE" });
+    const res = await dashboardFetch(`/api/clients/${id}`, { method: "DELETE" });
     const data = await res.json();
     if (!res.ok) {
       setError(data.error ?? "Deactivate failed");
       return;
     }
-    setClients((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, isActive: false } : c))
-    );
+    await reloadClients();
     router.refresh();
   }
 
   return (
     <div className="space-y-6">
+      {!canWrite && (
+        <p className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          You have read-only access to clients. Contact an administrator to add or edit
+          records.
+        </p>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-4 text-sm text-slate-600">
           <span>
@@ -208,7 +234,7 @@ export function ClientManagement({
         </div>
         {canWrite && (
           <button type="button" onClick={openCreate} className="medflow-btn-primary">
-            Add client
+            + Add client
           </button>
         )}
       </div>
@@ -396,7 +422,18 @@ export function ClientManagement({
             {clients.length === 0 ? (
               <tr>
                 <td colSpan={7}>
-                  <EmptyState message="No clients yet. Add a client to get started." />
+                  <div className="py-8 text-center">
+                    <EmptyState message="No clients in the database yet." />
+                    {canWrite && (
+                      <button
+                        type="button"
+                        onClick={openCreate}
+                        className="medflow-btn-primary mt-4"
+                      >
+                        + Add your first client
+                      </button>
+                    )}
+                  </div>
                 </td>
               </tr>
             ) : (

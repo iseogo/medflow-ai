@@ -3,8 +3,12 @@
 import { RoleType, UserStatus } from "@prisma/client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { DataTable, Table, Td, Th } from "@/components/dashboard/DataTable";
+import { Badge } from "@/components/ui/Badge";
 import { ROLE_LABELS, USER_STATUS_LABELS } from "@/lib/constants";
+import { DEFAULT_STAFF_PASSWORD } from "@/lib/staff-defaults";
 import type { PublicStaffUser } from "@/lib/user-public";
+import { formatDate } from "@/lib/utils";
 
 const ROLE_OPTIONS: RoleType[] = [
   "ADMIN",
@@ -16,6 +20,14 @@ const ROLE_OPTIONS: RoleType[] = [
   "READ_ONLY",
 ];
 
+function statusBadgeVariant(
+  status: UserStatus
+): "success" | "default" | "warning" | "danger" {
+  if (status === "ACTIVE") return "success";
+  if (status === "INACTIVE") return "default";
+  return "warning";
+}
+
 type Props = {
   initialStaff: PublicStaffUser[];
 };
@@ -25,13 +37,14 @@ export function StaffManagement({ initialStaff }: Props) {
   const [staff, setStaff] = useState(initialStaff);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [showCreate, setShowCreate] = useState(false);
+  const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
 
   const [form, setForm] = useState({
     email: "",
     firstName: "",
     lastName: "",
+    phone: "",
     roleType: "FRONT_DESK_STAFF" as RoleType,
     password: "",
     status: "ACTIVE" as UserStatus,
@@ -44,6 +57,7 @@ export function StaffManagement({ initialStaff }: Props) {
       email: "",
       firstName: "",
       lastName: "",
+      phone: "",
       roleType: "FRONT_DESK_STAFF",
       password: "",
       status: "ACTIVE",
@@ -51,7 +65,7 @@ export function StaffManagement({ initialStaff }: Props) {
       resetPassword: "",
     });
     setEditId(null);
-    setShowCreate(true);
+    setShowForm(true);
     setError(null);
   }
 
@@ -60,6 +74,7 @@ export function StaffManagement({ initialStaff }: Props) {
       email: u.email,
       firstName: u.firstName,
       lastName: u.lastName,
+      phone: u.phone ?? "",
       roleType: u.role.type,
       password: "",
       status: u.status,
@@ -67,7 +82,7 @@ export function StaffManagement({ initialStaff }: Props) {
       resetPassword: "",
     });
     setEditId(u.id);
-    setShowCreate(true);
+    setShowForm(true);
     setError(null);
   }
 
@@ -84,6 +99,7 @@ export function StaffManagement({ initialStaff }: Props) {
             email: form.email,
             firstName: form.firstName,
             lastName: form.lastName,
+            phone: form.phone || null,
             roleType: form.roleType,
             status: form.status,
             forcePasswordReset: form.forcePasswordReset,
@@ -101,19 +117,20 @@ export function StaffManagement({ initialStaff }: Props) {
             email: form.email,
             firstName: form.firstName,
             lastName: form.lastName,
+            phone: form.phone || null,
             roleType: form.roleType,
-            password: form.password,
+            ...(form.password ? { password: form.password } : {}),
             status: form.status,
             forcePasswordReset: form.forcePasswordReset,
           }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? "Create failed");
-        setStaff((prev) => [...prev, data].sort((a, b) =>
-          a.lastName.localeCompare(b.lastName)
-        ));
+        setStaff((prev) =>
+          [...prev, data].sort((a, b) => a.lastName.localeCompare(b.lastName))
+        );
       }
-      setShowCreate(false);
+      setShowForm(false);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Request failed");
@@ -123,34 +140,35 @@ export function StaffManagement({ initialStaff }: Props) {
   }
 
   async function deactivate(id: string) {
-    if (!confirm("Deactivate this staff member?")) return;
-    const res = await fetch(`/api/staff/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: "INACTIVE" }),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setStaff((prev) => prev.map((u) => (u.id === id ? data : u)));
-      router.refresh();
+    if (!confirm("Deactivate this staff member? They will not be able to sign in.")) {
+      return;
     }
+    const res = await fetch(`/api/staff/${id}`, { method: "DELETE" });
+    const data = await res.json();
+    if (!res.ok) {
+      setError(data.error ?? "Deactivate failed");
+      return;
+    }
+    setStaff((prev) => prev.map((u) => (u.id === id ? data : u)));
+    router.refresh();
   }
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-sm text-slate-600">
-          Each staff member has an individual login — no shared passwords.
+          {staff.length} staff account{staff.length === 1 ? "" : "s"} · individual logins
+          with role-based access
         </p>
         <button type="button" onClick={openCreate} className="medflow-btn-primary">
           Add staff member
         </button>
       </div>
 
-      {showCreate && (
+      {showForm && (
         <form onSubmit={handleSubmit} className="medflow-card space-y-4 p-6">
           <h3 className="font-semibold text-slate-900">
-            {editId ? "Edit staff member" : "New staff member"}
+            {editId ? "Edit staff member" : "Add staff member"}
           </h3>
           {error && (
             <p className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>
@@ -182,6 +200,15 @@ export function StaffManagement({ initialStaff }: Props) {
                 className="medflow-input mt-1 w-full"
                 value={form.email}
                 onChange={(e) => setForm({ ...form, email: e.target.value })}
+              />
+            </label>
+            <label className="block text-sm sm:col-span-2">
+              <span className="text-slate-600">Phone</span>
+              <input
+                type="tel"
+                className="medflow-input mt-1 w-full"
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
               />
             </label>
             <label className="block text-sm">
@@ -218,10 +245,12 @@ export function StaffManagement({ initialStaff }: Props) {
             </label>
             {!editId ? (
               <label className="block text-sm sm:col-span-2">
-                <span className="text-slate-600">Initial password</span>
+                <span className="text-slate-600">
+                  Initial password (optional — default {DEFAULT_STAFF_PASSWORD})
+                </span>
                 <input
-                  required
                   type="password"
+                  placeholder={DEFAULT_STAFF_PASSWORD}
                   className="medflow-input mt-1 w-full"
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
@@ -251,12 +280,12 @@ export function StaffManagement({ initialStaff }: Props) {
           </div>
           <div className="flex gap-2">
             <button type="submit" disabled={saving} className="medflow-btn-primary">
-              {saving ? "Saving…" : editId ? "Save changes" : "Create user"}
+              {saving ? "Saving…" : editId ? "Save changes" : "Create staff"}
             </button>
             <button
               type="button"
               className="medflow-btn-secondary"
-              onClick={() => setShowCreate(false)}
+              onClick={() => setShowForm(false)}
             >
               Cancel
             </button>
@@ -264,36 +293,45 @@ export function StaffManagement({ initialStaff }: Props) {
         </form>
       )}
 
-      <div className="medflow-card overflow-hidden">
-        <table className="min-w-full text-sm">
-          <thead className="border-b border-slate-200 bg-slate-50 text-left text-slate-600">
+      <DataTable>
+        <Table>
+          <thead>
             <tr>
-              <th className="px-4 py-3 font-medium">Name</th>
-              <th className="px-4 py-3 font-medium">Email</th>
-              <th className="px-4 py-3 font-medium">Role</th>
-              <th className="px-4 py-3 font-medium">Status</th>
-              <th className="px-4 py-3 font-medium">Last login</th>
-              <th className="px-4 py-3 font-medium">Actions</th>
+              <Th>Name</Th>
+              <Th>Email</Th>
+              <Th>Phone</Th>
+              <Th>Role</Th>
+              <Th>Status</Th>
+              <Th>Updated</Th>
+              <Th>Actions</Th>
             </tr>
           </thead>
           <tbody>
             {staff.map((u) => (
-              <tr key={u.id} className="border-b border-slate-100 hover:bg-slate-50">
-                <td className="px-4 py-3 font-medium text-slate-900">
-                  {u.firstName} {u.lastName}
+              <tr key={u.id} className="hover:bg-slate-50">
+                <Td>
+                  <span className="font-medium text-slate-900">
+                    {u.firstName} {u.lastName}
+                  </span>
                   {u.forcePasswordReset && (
                     <span className="ml-2 text-xs text-amber-700">Must reset PW</span>
                   )}
-                </td>
-                <td className="px-4 py-3 text-slate-600">{u.email}</td>
-                <td className="px-4 py-3">{ROLE_LABELS[u.role.type] ?? u.role.type}</td>
-                <td className="px-4 py-3">{USER_STATUS_LABELS[u.status] ?? u.status}</td>
-                <td className="px-4 py-3 text-slate-600">
-                  {u.lastLoginAt
-                    ? new Date(u.lastLoginAt).toLocaleString()
-                    : "Never"}
-                </td>
-                <td className="px-4 py-3">
+                </Td>
+                <Td className="text-slate-600">{u.email}</Td>
+                <Td className="text-slate-600">{u.phone ?? "—"}</Td>
+                <Td>{ROLE_LABELS[u.role.type] ?? u.role.type}</Td>
+                <Td>
+                  <Badge variant={statusBadgeVariant(u.status)}>
+                    {USER_STATUS_LABELS[u.status] ?? u.status}
+                  </Badge>
+                </Td>
+                <Td className="whitespace-nowrap text-slate-600">
+                  {formatDate(u.updatedAt, {
+                    dateStyle: "short",
+                    timeStyle: undefined,
+                  })}
+                </Td>
+                <Td>
                   <button
                     type="button"
                     className="text-medflow-600 hover:underline"
@@ -313,12 +351,12 @@ export function StaffManagement({ initialStaff }: Props) {
                       </button>
                     </>
                   )}
-                </td>
+                </Td>
               </tr>
             ))}
           </tbody>
-        </table>
-      </div>
+        </Table>
+      </DataTable>
     </div>
   );
 }

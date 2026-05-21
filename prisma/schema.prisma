@@ -334,6 +334,7 @@ model User {
   passwordHash        String
   firstName           String
   lastName            String
+  phone               String?
   status              UserStatus           @default(ACTIVE)
   forcePasswordReset  Boolean              @default(false)
   roleId              String
@@ -390,6 +391,7 @@ model Client {
   state                    String?
   postalCode               String?
   preferredLanguage        String?               @default("en")
+  preferredContactMethod   String?
   communicationPreferences Json?
   insurancePlaceholder     Json?
   documentsPlaceholder     Json?

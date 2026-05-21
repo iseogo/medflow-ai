@@ -102,6 +102,18 @@ export const REMINDER_OUTCOME_LABELS: Record<string, string> = {
   ESCALATED: "Escalated",
 };
 
+export const PREFERRED_CONTACT_LABELS: Record<string, string> = {
+  PHONE: "Phone",
+  EMAIL: "Email",
+  SMS: "SMS",
+};
+
+export const CLIENT_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: "Active",
+  INACTIVE: "Inactive",
+  ARCHIVED: "Archived",
+};
+
 export const ROLE_LABELS: Record<string, string> = {
   ADMIN: "Administrator",
   MANAGER: "Manager",

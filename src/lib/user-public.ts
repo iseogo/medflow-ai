@@ -3,6 +3,7 @@ import { RoleType, UserStatus } from "@prisma/client";
 export const userPublicSelect = {
   id: true,
   email: true,
+  phone: true,
   firstName: true,
   lastName: true,
   status: true,
@@ -17,6 +18,7 @@ export const userPublicSelect = {
 export type PublicStaffUser = {
   id: string;
   email: string;
+  phone: string | null;
   firstName: string;
   lastName: string;
   status: UserStatus;

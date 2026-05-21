@@ -1,16 +1,65 @@
-import Link from "next/link";
+import { getServerSession } from "next-auth";
+import { redirect } from "next/navigation";
 import { Header } from "@/components/dashboard/Header";
 import { PageHeader } from "@/components/dashboard/PageHeader";
-import { DataTable, EmptyState, Table, Td, Th } from "@/components/dashboard/DataTable";
+import {
+  ClientManagement,
+  type ClientListRow,
+} from "@/components/dashboard/ClientManagement";
+import { authOptions } from "@/lib/auth";
+import { hasAnyPermission, hasPermission } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
-import { formatName } from "@/lib/utils";
 
 export default async function ClientsPage() {
-  const clients = await prisma.client.findMany({
-    orderBy: { lastName: "asc" },
-    include: { _count: { select: { appointments: true, timelineEvents: true } } },
-    take: 100,
-  });
+  const session = await getServerSession(authOptions);
+  const role = session?.user?.role;
+  if (
+    !role ||
+    !hasAnyPermission(role, ["clients:read", "clients:read-limited"])
+  ) {
+    redirect("/dashboard/access-denied");
+  }
+
+  const canWrite = hasPermission(role, "clients:write");
+  const limited =
+    !hasPermission(role, "clients:read") &&
+    hasPermission(role, "clients:read-limited");
+
+  const [clients, activeCount, totalCount] = await Promise.all([
+    limited
+      ? prisma.client.findMany({
+          orderBy: { lastName: "asc" },
+          take: 200,
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            phone: true,
+            mrn: true,
+            isActive: true,
+            preferredContactMethod: true,
+            dateOfBirth: true,
+            notes: true,
+            addressLine1: true,
+            addressLine2: true,
+            city: true,
+            state: true,
+            postalCode: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+        })
+      : prisma.client.findMany({
+          orderBy: { lastName: "asc" },
+          take: 200,
+          include: {
+            _count: { select: { appointments: true, timelineEvents: true } },
+          },
+        }),
+    prisma.client.count({ where: { isActive: true } }),
+    prisma.client.count(),
+  ]);
 
   return (
     <>
@@ -20,51 +69,12 @@ export default async function ClientsPage() {
           title="Clients"
           description="Patient profiles with unified activity timelines"
         />
-        <DataTable>
-          <Table>
-            <thead>
-              <tr>
-                <Th>Name</Th>
-                <Th>MRN</Th>
-                <Th>Phone</Th>
-                <Th>Appointments</Th>
-                <Th>Timeline</Th>
-                <Th />
-              </tr>
-            </thead>
-            <tbody>
-              {clients.length === 0 ? (
-                <tr>
-                  <td colSpan={6}>
-                    <EmptyState message="No clients yet. Run seed or add via API." />
-                  </td>
-                </tr>
-              ) : (
-                clients.map((client) => (
-                  <tr key={client.id} className="hover:bg-slate-50">
-                    <Td>
-                      <span className="font-medium text-slate-900">
-                        {formatName(client.firstName, client.lastName)}
-                      </span>
-                    </Td>
-                    <Td>{client.mrn ?? "—"}</Td>
-                    <Td>{client.phone ?? "—"}</Td>
-                    <Td>{client._count.appointments}</Td>
-                    <Td>{client._count.timelineEvents} events</Td>
-                    <Td>
-                      <Link
-                        href={`/dashboard/clients/${client.id}`}
-                        className="text-sm font-medium text-medflow-600 hover:text-medflow-700"
-                      >
-                        View →
-                      </Link>
-                    </Td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </Table>
-        </DataTable>
+        <ClientManagement
+          initialClients={clients as ClientListRow[]}
+          activeCount={activeCount}
+          totalCount={totalCount}
+          canWrite={canWrite}
+        />
       </div>
     </>
   );

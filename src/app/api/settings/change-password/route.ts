@@ -3,7 +3,6 @@ import { requireSession } from "@/lib/api-auth";
 import { handleChangePassword } from "@/lib/auth/change-password-handler";
 import { getRequestMeta } from "@/lib/request-meta";
 
-/** @deprecated Prefer POST /api/settings/change-password */
 export async function POST(request: NextRequest) {
   const { error, user } = await requireSession();
   if (error) return error;

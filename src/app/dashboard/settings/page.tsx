@@ -2,10 +2,12 @@ import { Suspense } from "react";
 import { getServerSession } from "next-auth";
 import { Header } from "@/components/dashboard/Header";
 import { PageHeader } from "@/components/dashboard/PageHeader";
-import { ChangePasswordForm } from "@/components/dashboard/ChangePasswordForm";
+import { SettingsPasswordSection } from "@/components/dashboard/SettingsPasswordSection";
 import { IntegrationsPanel } from "@/components/dashboard/IntegrationsPanel";
 import { APP_TIMEZONE, APP_URL, N8N_URL, ROLE_LABELS } from "@/lib/constants";
 import { authOptions } from "@/lib/auth";
+
+export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
   const session = await getServerSession(authOptions);
@@ -20,6 +22,16 @@ export default async function SettingsPage() {
           description="Account security and platform configuration"
         />
         <article className="max-w-2xl space-y-6">
+          <Suspense
+            fallback={
+              <div className="medflow-card p-6 text-sm text-slate-500">
+                Loading password form…
+              </div>
+            }
+          >
+            <SettingsPasswordSection />
+          </Suspense>
+
           <section className="medflow-card p-6">
             <h3 className="font-semibold text-slate-900">Your account</h3>
             <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
@@ -39,10 +51,9 @@ export default async function SettingsPage() {
               </div>
             </dl>
           </section>
-          <Suspense fallback={<p className="text-sm text-slate-500">Loading…</p>}>
-            <ChangePasswordForm />
-          </Suspense>
+
           <IntegrationsPanel />
+
           <section className="medflow-card p-6">
             <h3 className="font-semibold text-slate-900">Platform</h3>
             <dl className="mt-4 space-y-3 text-sm">

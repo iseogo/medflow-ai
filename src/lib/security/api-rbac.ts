@@ -29,6 +29,7 @@ export const API_RBAC_RULES: ApiRule[] = [
   { prefix: "/api/agent-actions", permissions: ["orchestrator:read", "orchestrator:write"], any: true },
   { prefix: "/api/reminders", permissions: ["reminders:read", "reminders:write"], any: true },
   { prefix: "/api/integrations/status", permissions: ["settings:read"] },
+  { prefix: "/api/settings", permissions: ["settings:read"] },
   { prefix: "/api/agents/definitions", permissions: ["orchestrator:read"] },
   { prefix: "/api/supervisor", permissions: ["supervisor:read", "supervisor:run"], any: true },
   {

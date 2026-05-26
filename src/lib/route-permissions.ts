@@ -17,6 +17,7 @@ export const DASHBOARD_ROUTE_RULES: RouteRule[] = [
   { prefix: "/dashboard/walk-ins", permissions: ["walkins:read"] },
   { prefix: "/dashboard/check-ins", permissions: ["checkins:read"] },
   { prefix: "/dashboard/waiting-room", permissions: ["checkins:read", "walkins:read"] },
+  { prefix: "/dashboard/staff-tasks", permissions: ["staff-tasks:read"] },
   {
     prefix: "/dashboard/staff-intervention",
     permissions: ["staff-intervention:read", "walkins:read"],

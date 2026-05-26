@@ -1059,6 +1059,226 @@ async function main() {
     },
   });
 
+  // ─── Workflow demo: past appointments with NO_SHOW / CANCELLED / RESCHEDULE ─
+  const daysAgo = (n: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() - n);
+    d.setHours(10, 0, 0, 0);
+    return d;
+  };
+
+  await prisma.appointment.upsert({
+    where: { id: "seed-appt-noshow-1" },
+    update: { status: "NO_SHOW" },
+    create: {
+      id: "seed-appt-noshow-1",
+      clientId: client1.id,
+      scheduledAt: daysAgo(5),
+      status: "NO_SHOW",
+      reason: "Cardiology follow-up",
+      providerName: "Dr. Patel",
+    },
+  });
+
+  await prisma.appointment.upsert({
+    where: { id: "seed-appt-noshow-2" },
+    update: { status: "NO_SHOW" },
+    create: {
+      id: "seed-appt-noshow-2",
+      clientId: client2.id,
+      scheduledAt: daysAgo(3),
+      status: "NO_SHOW",
+      reason: "Diabetes management",
+      providerName: "Dr. Nguyen",
+    },
+  });
+
+  await prisma.appointment.upsert({
+    where: { id: "seed-appt-cancelled-1" },
+    update: { status: "CANCELLED" },
+    create: {
+      id: "seed-appt-cancelled-1",
+      clientId: client3.id,
+      scheduledAt: daysAgo(2),
+      status: "CANCELLED",
+      reason: "Routine physical",
+      providerName: "Dr. Kim",
+    },
+  });
+
+  await prisma.appointment.upsert({
+    where: { id: "seed-appt-reschedule-1" },
+    update: { status: "RESCHEDULE_REQUESTED" },
+    create: {
+      id: "seed-appt-reschedule-1",
+      clientId: client1.id,
+      scheduledAt: daysAgo(1),
+      status: "RESCHEDULE_REQUESTED",
+      reason: "Lab review",
+      providerName: "Dr. Patel",
+    },
+  });
+
+  // ─── ReminderLogs for today's appointments ─────────────────────────────
+  const seedSmsReminder = await prisma.smsLog.upsert({
+    where: { id: "seed-sms-reminder-james" },
+    update: {},
+    create: {
+      id: "seed-sms-reminder-james",
+      clientId: client2.id,
+      appointmentId: "seed-appt-today-james",
+      purpose: "appointment_reminder_24h",
+      status: "DELIVERED",
+      toNumber: client2.phone,
+      messageBody: "Reminder: Your appointment with Dr. Nguyen is tomorrow at 2:30 PM. Reply CONFIRM to confirm or CANCEL to cancel.",
+    },
+  });
+
+  const seedEmailReminder = await prisma.emailLog.upsert({
+    where: { id: "seed-email-reminder-maria" },
+    update: {},
+    create: {
+      id: "seed-email-reminder-maria",
+      clientId: client1.id,
+      appointmentId: "seed-appt-10001",
+      purpose: "appointment_reminder_48h",
+      status: "DELIVERED",
+      toEmail: client1.email ?? undefined,
+      subject: "Appointment Reminder: Wellness Visit tomorrow at 3 PM",
+    },
+  });
+
+  const seedCallReminderMaria = await prisma.callLog.upsert({
+    where: { id: "seed-call-reminder-maria" },
+    update: {},
+    create: {
+      id: "seed-call-reminder-maria",
+      clientId: client1.id,
+      appointmentId: "seed-appt-today-maria",
+      purpose: "appointment_reminder_48h",
+      status: "ANSWERED",
+      direction: "OUTBOUND",
+      phoneNumber: client1.phone,
+      durationSeconds: 38,
+      externalRef: "call_reminder_maria_stub",
+    },
+  });
+
+  await prisma.reminderLog.upsert({
+    where: {
+      appointmentId_reminderOffset: {
+        appointmentId: "seed-appt-today-maria",
+        reminderOffset: "HOURS_48",
+      },
+    },
+    update: {},
+    create: {
+      clientId: client1.id,
+      appointmentId: "seed-appt-today-maria",
+      reminderOffset: "HOURS_48",
+      outcome: "CONFIRMED",
+      dueAt: daysAgo(2),
+      voiceCallLogId: seedCallReminderMaria.id,
+    },
+  });
+
+  await prisma.reminderLog.upsert({
+    where: {
+      appointmentId_reminderOffset: {
+        appointmentId: "seed-appt-today-james",
+        reminderOffset: "HOURS_24",
+      },
+    },
+    update: {},
+    create: {
+      clientId: client2.id,
+      appointmentId: "seed-appt-today-james",
+      reminderOffset: "HOURS_24",
+      outcome: "NO_RESPONSE",
+      dueAt: daysAgo(1),
+      smsLogId: seedSmsReminder.id,
+    },
+  });
+
+  await prisma.reminderLog.upsert({
+    where: {
+      appointmentId_reminderOffset: {
+        appointmentId: "seed-appt-10001",
+        reminderOffset: "HOURS_48",
+      },
+    },
+    update: {},
+    create: {
+      clientId: client1.id,
+      appointmentId: "seed-appt-10001",
+      reminderOffset: "HOURS_48",
+      outcome: "CONFIRMED",
+      dueAt: daysAgo(1),
+      emailLogId: seedEmailReminder.id,
+    },
+  });
+
+  await prisma.reminderLog.upsert({
+    where: {
+      appointmentId_reminderOffset: {
+        appointmentId: "seed-appt-10002",
+        reminderOffset: "HOURS_24",
+      },
+    },
+    update: {},
+    create: {
+      clientId: client2.id,
+      appointmentId: "seed-appt-10002",
+      reminderOffset: "HOURS_24",
+      outcome: "FAILED",
+      dueAt: new Date(),
+      metadata: { failReason: "no_answer" } as Prisma.InputJsonValue,
+    },
+  });
+
+  // ─── StaffTasks for no-show follow-up and reschedule ──────────────────
+  await prisma.staffTask.upsert({
+    where: { id: "seed-task-noshow-1" },
+    update: {},
+    create: {
+      id: "seed-task-noshow-1",
+      title: "No-show follow-up — call patient",
+      description: "Maria Garcia missed her Cardiology follow-up appointment on May 21. Please call to reschedule and document outcome.",
+      status: "PENDING",
+      priority: "HIGH",
+      clientId: client1.id,
+      createdById: admin.id,
+    },
+  });
+
+  await prisma.staffTask.upsert({
+    where: { id: "seed-task-noshow-2" },
+    update: {},
+    create: {
+      id: "seed-task-noshow-2",
+      title: "No-show follow-up — call patient",
+      description: "James Wilson missed his Diabetes management appointment on May 23. Call to reschedule.",
+      status: "IN_PROGRESS",
+      priority: "URGENT",
+      clientId: client2.id,
+      createdById: admin.id,
+    },
+  });
+
+  await prisma.staffTask.upsert({
+    where: { id: "seed-task-reschedule-1" },
+    update: {},
+    create: {
+      id: "seed-task-reschedule-1",
+      title: "Reschedule appointment — contact patient",
+      description: "Maria Garcia requested reschedule for her Lab review appointment. Find an available slot and confirm.",
+      status: "PENDING",
+      priority: "HIGH",
+      clientId: client1.id,
+      createdById: admin.id,
+    },
+  });
+
   type DemoNotificationSeed = {
     id: string;
     source: NotificationSource;

@@ -158,9 +158,11 @@ export const masterOrchestratorService = {
 
     const emergency = input.contentForEmergencyScan
       ? detectEmergencyLanguage(input.contentForEmergencyScan)
-      : { isEmergency: false, matchedTerms: [] as string[] };
+      : { isEmergency: false, isHighConfidence: false, matchedTerms: [] as string[] };
 
-    if (emergency.isEmergency) {
+    // Only halt automation for high-confidence emergency signals.
+    // Medium-confidence matches (e.g. "emergency appointment") are flagged but not halted.
+    if (emergency.isEmergency && emergency.isHighConfidence) {
       return this.handleEmergency({
         clientId: input.clientId,
         appointmentId: input.appointmentId,
@@ -301,6 +303,17 @@ export const masterOrchestratorService = {
     }
 
     if (proposal.actionType === "LOG_NOTE") {
+      const payload = (proposal.proposedPayload ?? {}) as Record<string, unknown>;
+      const safetyRecheck = validateAgentProposalContent({
+        description: proposal.description ?? undefined,
+        proposedPayload: payload,
+      });
+      if (!safetyRecheck.ok) {
+        return this.applyReview(proposalId, "REJECT", {
+          orchestratorNotes: `Auto-rejected LOG_NOTE: safety violation — ${safetyRecheck.message}`,
+          reviewerLabel: "Master Orchestrator Agent",
+        });
+      }
       return this.applyReview(proposalId, "APPROVE", {
         orchestratorNotes: "Auto-approved: low-risk log note",
         reviewerLabel: "Master Orchestrator Agent",

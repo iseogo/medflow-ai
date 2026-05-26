@@ -110,6 +110,27 @@ export const coordinationMonitorService = {
           });
         }
       }
+
+      if (a.proposalStatus === "EXECUTED" && a.actionType === "CREATE_STAFF_TASK") {
+        const windowStart = new Date(a.createdAt.getTime() - 60_000);
+        const taskExists = await prisma.staffTask.findFirst({
+          where: {
+            clientId: a.clientId,
+            createdAt: { gte: windowStart },
+          },
+          select: { id: true },
+        });
+        if (!taskExists) {
+          findings.push({
+            incidentType: "ORCHESTRATOR_ANOMALY",
+            severity: "WARNING",
+            title: "CREATE_STAFF_TASK executed without resulting StaffTask",
+            description: `AgentAction ${a.id} (CREATE_STAFF_TASK) is EXECUTED but no StaffTask found for client within 1 minute`,
+            clientId: a.clientId,
+            agentActionId: a.id,
+          });
+        }
+      }
     }
     return findings;
   },

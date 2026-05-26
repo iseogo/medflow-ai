@@ -159,6 +159,8 @@ export const ROLE_PERMISSIONS: Record<RoleType, Permission[]> = {
     "notifications:write",
     "command-center:read",
   ],
+  // audit:read is intentionally excluded — audit logs contain IP addresses, actor roles,
+  // and operational metadata. Access is restricted to ADMIN and MANAGER roles (HIPAA).
   READ_ONLY: [
     "clients:read",
     "appointments:read",
@@ -170,7 +172,6 @@ export const ROLE_PERMISSIONS: Record<RoleType, Permission[]> = {
     "medical-records:read",
     "clinical-notes:read",
     "reports:read",
-    "audit:read",
     "settings:read",
     "communications:read",
     "orchestrator:read",

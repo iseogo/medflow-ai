@@ -74,6 +74,13 @@ export function validateAgentProposalContent(input: {
     typeof input.proposedPayload?.body === "string"
       ? input.proposedPayload.body
       : undefined,
+    // Scan supervisor correction request notes and any generic payload note field
+    typeof input.proposedPayload?.note === "string"
+      ? input.proposedPayload.note
+      : undefined,
+    typeof input.proposedPayload?.subject === "string"
+      ? input.proposedPayload.subject
+      : undefined,
   ].filter(Boolean) as string[];
 
   for (const part of parts) {

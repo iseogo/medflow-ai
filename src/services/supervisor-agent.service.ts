@@ -177,7 +177,7 @@ export const supervisorAgentService = {
           },
         });
         if (!open) {
-          await prisma.staffIntervention.create({
+          const intervention = await prisma.staffIntervention.create({
             data: {
               clientId: f.clientId,
               status: f.severity === "CRITICAL" ? "URGENT" : "STAFF_REVIEW_REQUIRED",
@@ -192,6 +192,21 @@ export const supervisorAgentService = {
             },
           });
           staffInterventionsCreated += 1;
+
+          // Audit the supervisor-created intervention so it is traceable
+          await createAuditLog({
+            action: "CREATE",
+            entityType: "StaffIntervention",
+            entityId: intervention.id,
+            clientId: f.clientId,
+            userId: actorUserId,
+            metadata: sanitizeMetadataForAudit({
+              source: "supervisor_scan",
+              incidentType: f.incidentType,
+              severity: f.severity,
+              agentActionId: f.agentActionId,
+            }),
+          });
 
           await addTimelineEvent({
             clientId: f.clientId,
@@ -217,8 +232,18 @@ export const supervisorAgentService = {
             actorUserId,
           });
           orchestratorReviewRequestsSubmitted += 1;
-        } catch {
-          /* dedup or automation block — observation recorded via alert + recommendation */
+        } catch (correctionErr) {
+          // DuplicateProposalError and AiAutomationBlockedError are expected when the
+          // same finding already has a pending correction request — not an error.
+          // Any other error is logged so it doesn't silently swallow real failures.
+          const msg = correctionErr instanceof Error ? correctionErr.message : String(correctionErr);
+          if (
+            !msg.includes("Duplicate agent proposal") &&
+            !msg.includes("Automation is halted") &&
+            !msg.includes("Staff override active")
+          ) {
+            console.error("[supervisor] Unexpected correction request error:", msg);
+          }
         }
       }
     }

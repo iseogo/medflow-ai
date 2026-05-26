@@ -925,6 +925,140 @@ async function main() {
     },
   });
 
+  // ─── Additional outbound calls ─────────────────────────────────────────
+  for (const call of [
+    {
+      id: "seed-call-out-maria-1",
+      clientId: client1.id,
+      phone: client1.phone!,
+      purpose: "appointment_reminder",
+      status: "ANSWERED" as const,
+      durationSeconds: 45,
+    },
+    {
+      id: "seed-call-out-sofia-1",
+      clientId: client3.id,
+      phone: client3.phone!,
+      purpose: "follow_up_outreach",
+      status: "NO_ANSWER" as const,
+      durationSeconds: null,
+    },
+    {
+      id: "seed-call-out-james-2",
+      clientId: client2.id,
+      phone: client2.phone!,
+      purpose: "billing_follow_up",
+      status: "FAILED" as const,
+      durationSeconds: null,
+    },
+    {
+      id: "seed-call-out-maria-2",
+      clientId: client1.id,
+      phone: client1.phone!,
+      purpose: "appointment_reminder",
+      status: "NO_ANSWER" as const,
+      durationSeconds: null,
+    },
+  ]) {
+    await prisma.callLog.upsert({
+      where: { id: call.id },
+      update: {},
+      create: {
+        id: call.id,
+        clientId: call.clientId,
+        purpose: call.purpose,
+        status: call.status,
+        direction: "OUTBOUND",
+        phoneNumber: call.phone,
+        durationSeconds: call.durationSeconds,
+        externalRef: `${call.id}_stub`,
+        initiatedById: admin.id,
+      },
+    });
+  }
+
+  // ─── Missed inbound calls ──────────────────────────────────────────────
+  const inboundUnknown = await prisma.client.findFirstOrThrow({
+    where: { mrn: "INBOUND-UNKNOWN" },
+    select: { id: true },
+  });
+
+  for (const call of [
+    {
+      id: "seed-call-missed-1",
+      clientId: client1.id,
+      phone: client1.phone!,
+      status: "NO_ANSWER" as const,
+      meta: { missedCall: true, callerNumber: client1.phone, aiFollowUpStatus: "PENDING" },
+    },
+    {
+      id: "seed-call-missed-2",
+      clientId: client3.id,
+      phone: client3.phone!,
+      status: "ABANDONED" as const,
+      meta: { missedCall: true, callerNumber: client3.phone, aiFollowUpStatus: "TASK_CREATED" },
+    },
+    {
+      id: "seed-call-missed-3",
+      clientId: inboundUnknown.id,
+      phone: "+13125550199",
+      status: "NO_ANSWER" as const,
+      meta: {
+        missedCall: true,
+        callerNumber: "+13125550199",
+        aiFollowUpStatus: "ESCALATED",
+        recentMissedCount1h: 3,
+        escalateToManager: true,
+      },
+    },
+  ]) {
+    await prisma.callLog.upsert({
+      where: { id: call.id },
+      update: {},
+      create: {
+        id: call.id,
+        clientId: call.clientId,
+        purpose: "missed_inbound_call_follow_up",
+        status: call.status,
+        direction: "INBOUND",
+        phoneNumber: call.phone,
+        metadata: call.meta as Prisma.InputJsonValue,
+        externalRef: `${call.id}_stub`,
+      },
+    });
+  }
+
+  // ─── StaffTasks for missed callbacks ──────────────────────────────────
+  const missedCallTaskTitle = "Missed inbound call — call patient back";
+
+  await prisma.staffTask.upsert({
+    where: { id: "seed-task-missed-1" },
+    update: {},
+    create: {
+      id: "seed-task-missed-1",
+      title: missedCallTaskTitle,
+      description: `Missed inbound call from ${client1.phone}. Please call the patient back.`,
+      status: "PENDING",
+      priority: "HIGH",
+      clientId: client1.id,
+      createdById: admin.id,
+    },
+  });
+
+  await prisma.staffTask.upsert({
+    where: { id: "seed-task-missed-2" },
+    update: {},
+    create: {
+      id: "seed-task-missed-2",
+      title: missedCallTaskTitle,
+      description: `Abandoned inbound call from ${client3.phone}. Please call the patient back.`,
+      status: "IN_PROGRESS",
+      priority: "URGENT",
+      clientId: client3.id,
+      createdById: admin.id,
+    },
+  });
+
   type DemoNotificationSeed = {
     id: string;
     source: NotificationSource;
@@ -1147,6 +1281,78 @@ async function main() {
       actorUserId: admin.id,
     },
   });
+
+  // ─── Missed-call StaffNotifications ──────────────────────────────────
+  const missedDefaults = NOTIFICATION_SOURCE_DEFAULTS["MISSED_INBOUND_CALL"];
+
+  const missedCallNotifs = [
+    {
+      id: "seed-notif-missed-1",
+      clientId: client1.id,
+      title: `Missed inbound call — Maria Garcia`,
+      message: `Unanswered call from ${client1.phone}. Callback task created.`,
+      priority: missedDefaults.priority,
+      status: "UNREAD" as const,
+      staffTaskId: "seed-task-missed-1",
+      callLogId: "seed-call-missed-1",
+      recentMissedCount1h: 1,
+      escalateToManager: false,
+      assignedRole: "FRONT_DESK_STAFF" as const,
+    },
+    {
+      id: "seed-notif-missed-2",
+      clientId: client3.id,
+      title: `Missed inbound call — Sofia Chen (abandoned)`,
+      message: `Call abandoned by ${client3.phone}. Callback task is in progress.`,
+      priority: "HIGH" as const,
+      status: "ACKNOWLEDGED" as const,
+      staffTaskId: "seed-task-missed-2",
+      callLogId: "seed-call-missed-2",
+      recentMissedCount1h: 2,
+      escalateToManager: false,
+      assignedRole: "FRONT_DESK_STAFF" as const,
+    },
+    {
+      id: "seed-notif-missed-3",
+      clientId: inboundUnknown.id,
+      title: "Repeated missed calls — unknown caller",
+      message: "3 missed calls from +13125550199 in the last hour. Manager review suggested.",
+      priority: "CRITICAL" as const,
+      status: "UNREAD" as const,
+      staffTaskId: undefined,
+      callLogId: "seed-call-missed-3",
+      recentMissedCount1h: 3,
+      escalateToManager: true,
+      assignedRole: "MANAGER" as const,
+    },
+  ];
+
+  for (const n of missedCallNotifs) {
+    await prisma.staffNotification.upsert({
+      where: { id: n.id },
+      update: {},
+      create: {
+        id: n.id,
+        title: n.title,
+        message: n.message,
+        category: missedDefaults.category,
+        priority: n.priority,
+        status: n.status,
+        source: "MISSED_INBOUND_CALL",
+        sourceKey: `seed:${n.id}`,
+        clientId: n.clientId,
+        staffTaskId: n.staffTaskId,
+        assignedRole: n.assignedRole,
+        metadata: {
+          callLogId: n.callLogId,
+          recentMissedCount1h: n.recentMissedCount1h,
+          escalateToManager: n.escalateToManager,
+          seed: true,
+        } as Prisma.InputJsonValue,
+        createdByUserId: admin.id,
+      },
+    });
+  }
 
   const roleCount = await prisma.role.count();
   if (roleCount !== ROLES.length) {

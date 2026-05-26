@@ -8,6 +8,7 @@ import {
 
 export type InboundMissedCallRow = {
   id: string;
+  clientId: string;
   callerPhone: string;
   status: string;
   receivedAt: Date;
@@ -15,6 +16,7 @@ export type InboundMissedCallRow = {
   followUpAiStatus: string;
   escalationLevel: string;
   clientLabel: string;
+  notifStatus?: string;
 };
 
 function parseMetadata(raw: unknown): MissedCallMetadata | null {
@@ -80,6 +82,7 @@ export const inboundCallsService = {
         select: {
           id: true,
           priority: true,
+          status: true,
           metadata: true,
           staffTaskId: true,
         },
@@ -133,6 +136,7 @@ export const inboundCallsService = {
 
       return {
         id: call.id,
+        clientId: call.clientId,
         callerPhone:
           meta?.callerNumber ?? call.phoneNumber ?? "Unknown",
         status: call.status,
@@ -148,6 +152,7 @@ export const inboundCallsService = {
           call.client.mrn === "INBOUND-UNKNOWN"
             ? "Unknown caller"
             : `${call.client.firstName} ${call.client.lastName}`,
+        notifStatus: notification?.status,
       };
     });
   },

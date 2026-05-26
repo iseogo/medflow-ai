@@ -9,6 +9,7 @@ import {
   Clock,
   FileText,
   LayoutDashboard,
+  ListChecks,
   LogIn,
   Mail,
   MessageSquare,
@@ -47,6 +48,7 @@ const mainNav: NavItem[] = [
   { href: "/dashboard/command-center", label: "Command Center", icon: Radar },
   { href: "/dashboard/clients", label: "Clients", icon: Users },
   { href: "/dashboard/appointments", label: "Appointments", icon: Calendar },
+  { href: "/dashboard/staff-tasks", label: "Staff Task Queue", icon: ListChecks },
   {
     href: "/dashboard/staff-intervention",
     label: "Staff Intervention",

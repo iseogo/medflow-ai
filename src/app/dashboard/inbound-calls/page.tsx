@@ -11,6 +11,7 @@ import {
 } from "@/components/dashboard/DataTable";
 import { formatDate } from "@/lib/utils";
 import { inboundCallsService } from "@/services/inbound-calls.service";
+import { MissedCallActions } from "./MissedCallActions";
 
 function escalationVariant(
   level: string
@@ -42,12 +43,13 @@ export default async function InboundCallsPage() {
                 <Th>Follow-up task</Th>
                 <Th>AI follow-up</Th>
                 <Th>Escalation</Th>
+                <Th>Actions</Th>
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td colSpan={7}>
+                  <td colSpan={8}>
                     <EmptyState message="No missed inbound calls recorded yet." />
                   </td>
                 </tr>
@@ -83,6 +85,15 @@ export default async function InboundCallsPage() {
                       <Badge variant={escalationVariant(row.escalationLevel)}>
                         {row.escalationLevel}
                       </Badge>
+                    </Td>
+                    <Td>
+                      <MissedCallActions
+                        callLogId={row.id}
+                        clientId={row.clientId}
+                        callerPhone={row.callerPhone}
+                        followUpTaskStatus={row.followUpTaskStatus}
+                        notifStatus={row.notifStatus}
+                      />
                     </Td>
                   </tr>
                 ))

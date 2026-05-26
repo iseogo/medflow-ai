@@ -69,23 +69,26 @@ export type RecordAgentActionInput = {
   agentName?: string;
 };
 
-async function resolveClientPhone(clientId: string) {
+async function resolveClientPhone(clientId: string): Promise<string> {
   const client = await prisma.client.findUnique({
     where: { id: clientId },
     select: { phone: true },
   });
-  return client?.phone ?? "+10000000000";
+  if (!client?.phone) {
+    throw new Error(`Client ${clientId} has no phone number on file — cannot send SMS or place call`);
+  }
+  return client.phone;
 }
 
-async function resolveClientEmail(clientId: string) {
+async function resolveClientEmail(clientId: string): Promise<string> {
   const client = await prisma.client.findUnique({
     where: { id: clientId },
-    select: { email: true, firstName: true, lastName: true },
+    select: { email: true },
   });
-  return (
-    client?.email ??
-    `${client?.firstName ?? "client"}.${client?.lastName ?? "unknown"}@example.com`
-  );
+  if (!client?.email) {
+    throw new Error(`Client ${clientId} has no email address on file — cannot send email`);
+  }
+  return client.email;
 }
 
 async function validateAppointment(

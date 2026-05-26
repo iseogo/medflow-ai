@@ -83,7 +83,11 @@ export async function findOverlappingAppointments(
       ...(input.excludeAppointmentId && { id: { not: input.excludeAppointmentId } }),
       status: { in: [...ACTIVE_APPOINTMENT_STATUSES] },
       providerName: { not: null },
-      scheduledAt: { lt: windowEnd },
+      // Narrow the time window to provider + buffer range to keep the query bounded
+      scheduledAt: {
+        gte: new Date(windowStart.getTime() - input.durationMinutes * 60_000),
+        lt: windowEnd,
+      },
     },
     select: {
       id: true,
@@ -91,7 +95,6 @@ export async function findOverlappingAppointments(
       durationMinutes: true,
       providerName: true,
     },
-    take: 50,
   });
 
   for (const appt of candidates) {

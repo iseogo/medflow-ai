@@ -1,7 +1,19 @@
 /**
  * In-memory sliding-window rate limiter (per IP + route prefix).
- * For multi-instance production, use Redis or edge rate limiting.
+ *
+ * WARNING: This limiter is process-local. It resets on restart and provides no
+ * protection in multi-instance deployments (Vercel, horizontal scaling, etc.).
+ * Before going to production at scale, replace with a Redis-backed or CDN-level
+ * rate limiter (e.g. Upstash Redis, Vercel KV, or edge middleware).
  */
+
+if (process.env.NODE_ENV === "production" && !process.env.RATE_LIMIT_BACKEND_CONFIGURED) {
+  console.warn(
+    "[medflow] WARNING: Using in-memory rate limiter in production. " +
+    "Set RATE_LIMIT_BACKEND_CONFIGURED=redis once a distributed limiter is wired up. " +
+    "See src/lib/security/rate-limit.ts for migration instructions."
+  );
+}
 
 type Bucket = { count: number; resetAt: number };
 

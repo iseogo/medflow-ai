@@ -42,6 +42,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ isEmergency: false, matchedTerms: [] });
   }
 
+  // Only trigger full automation halt for high-confidence emergency signals.
+  if (!detection.isHighConfidence) {
+    return NextResponse.json({
+      isEmergency: true,
+      isHighConfidence: false,
+      matchedTerms: detection.matchedTerms,
+      automationHalted: false,
+      note: "Medium-confidence signal — flag for review but automation not halted",
+    });
+  }
+
   const proposal = await masterOrchestratorService.handleEmergency({
     clientId: parsed.data.clientId,
     appointmentId: parsed.data.appointmentId,

@@ -37,6 +37,7 @@ export const API_RBAC_RULES: ApiRule[] = [
     permissions: ["notifications:read", "notifications:write"],
     any: true,
   },
+  { prefix: "/api/command-center", permissions: ["command-center:read"] },
 ];
 
 const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
@@ -72,7 +73,8 @@ export function apiRbacAllowed(
   if (isPublicApiPath(pathname)) return true;
 
   const rule = matchApiRule(pathname, method);
-  if (!rule) return true;
+  // Deny-by-default: unregistered routes require explicit allowlisting above.
+  if (!rule) return false;
 
   if (WRITE_METHODS.has(method.toUpperCase())) {
     for (const [prefix, perm] of Object.entries(WRITE_PERMISSION_OVERRIDES)) {

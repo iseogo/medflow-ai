@@ -1,4 +1,8 @@
-import { CommunicationStatus } from "@prisma/client";
+import {
+  AppointmentStatus,
+  CommunicationStatus,
+  StaffInterventionStatus,
+} from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { createAuditLog } from "@/lib/audit";
 import { inboundCallDebug } from "@/lib/inbound-call/inbound-call-debug";
@@ -14,6 +18,37 @@ import {
   readWebhookBody,
   validateMedflowWebhookSecret,
 } from "@/lib/integrations/webhook-auth";
+
+const VALID_APPOINTMENT_STATUSES = new Set<string>(Object.values(AppointmentStatus));
+const VALID_INTERVENTION_STATUSES = new Set<string>(Object.values(StaffInterventionStatus));
+
+/** Reject webhook requests older than 5 minutes to prevent replay attacks. */
+function assertWebhookTimestamp(headers: Headers): { ok: true } | { ok: false; response: NextResponse } {
+  const ts = headers.get("x-medflow-timestamp");
+  if (!ts) {
+    if (process.env.NODE_ENV === "production") {
+      return {
+        ok: false,
+        response: NextResponse.json(
+          { error: "Missing X-MedFlow-Timestamp header" },
+          { status: 400 }
+        ),
+      };
+    }
+    return { ok: true };
+  }
+  const age = Date.now() - Number(ts);
+  if (!Number.isFinite(age) || age > 5 * 60_000 || age < -30_000) {
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: "Webhook timestamp expired or invalid" },
+        { status: 400 }
+      ),
+    };
+  }
+  return { ok: true };
+}
 
 export type WebhookEventType =
   | "inbound-call"
@@ -66,6 +101,9 @@ export async function handleMedflowWebhook(
     }).catch(() => undefined);
     return auth.response;
   }
+
+  const tsCheck = assertWebhookTimestamp(request.headers);
+  if (!tsCheck.ok) return tsCheck.response;
 
   let payload: Record<string, unknown> = {};
   if (rawBody) {
@@ -208,22 +246,52 @@ async function applyWebhookSideEffects(
 
   if (eventType === "appointment") {
     const appointmentId = String(payload.appointmentId ?? "");
-    const status = String(payload.status ?? "");
+    const status = String(payload.status ?? "").toUpperCase();
     if (appointmentId && status) {
-      await prisma.appointment.updateMany({
+      if (!VALID_APPOINTMENT_STATUSES.has(status)) {
+        logger.warn("webhook_invalid_appointment_status", { status, appointmentId });
+        return { missedCallRecorded };
+      }
+      const existing = await prisma.appointment.findUnique({
         where: { id: appointmentId },
-        data: { status: status as never },
+        select: { id: true },
+      });
+      if (!existing) {
+        logger.warn("webhook_appointment_not_found", { appointmentId });
+        return { missedCallRecorded };
+      }
+      await prisma.appointment.update({
+        where: { id: appointmentId },
+        data: { status: status as AppointmentStatus },
+      });
+      await createAuditLog({
+        action: "UPDATE",
+        entityType: "Appointment",
+        entityId: appointmentId,
+        metadata: { status, source: "webhook", eventType },
       });
     }
   }
 
   if (eventType === "staff-intervention") {
     const interventionId = String(payload.interventionId ?? "");
-    const status = String(payload.status ?? "");
+    const status = String(payload.status ?? "").toUpperCase();
     if (interventionId && status) {
-      await prisma.staffIntervention.updateMany({
+      if (!VALID_INTERVENTION_STATUSES.has(status)) {
+        logger.warn("webhook_invalid_intervention_status", { status, interventionId });
+        return { missedCallRecorded };
+      }
+      const existing = await prisma.staffIntervention.findUnique({
         where: { id: interventionId },
-        data: { status: status as never },
+        select: { id: true },
+      });
+      if (!existing) {
+        logger.warn("webhook_intervention_not_found", { interventionId });
+        return { missedCallRecorded };
+      }
+      await prisma.staffIntervention.update({
+        where: { id: interventionId },
+        data: { status: status as StaffInterventionStatus },
       });
     }
   }

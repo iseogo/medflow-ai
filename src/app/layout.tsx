@@ -1,7 +1,11 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import { SessionProvider } from "@/components/providers/SessionProvider";
+import { assertProductionEnv } from "@/lib/env";
 import "./globals.css";
+
+// Throws at startup in production if required secrets are misconfigured.
+assertProductionEnv();
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 

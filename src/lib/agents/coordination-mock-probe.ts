@@ -131,14 +131,8 @@ export async function runCoordinationMockProbe(): Promise<CoordinationProbeResul
           },
         })
         .catch(() => undefined);
-      await prisma.auditLog
-        .deleteMany({
-          where: {
-            entityType: { in: ["MissedInboundCall", "SupervisorObservation"] },
-            createdAt: { gte: new Date(Date.now() - 300_000) },
-          },
-        })
-        .catch(() => undefined);
+      // Audit logs are immutable compliance records — never deleted, even for probes.
+      // Probe entries are distinguishable by their entityType and recent timestamp.
       await prisma.callLog.delete({ where: { id: callLogId } }).catch(() => undefined);
       cleanedUp = true;
       checks.cleaned_up = true;

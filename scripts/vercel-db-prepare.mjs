@@ -11,7 +11,23 @@ if (!process.env.DATABASE_URL) {
 }
 
 console.log("[deploy-db] Applying migrations...");
-execSync("npx prisma migrate deploy", { stdio: "inherit" });
+// Concurrent builds (e.g. a preview and a production deploy of the same
+// commit) race for Prisma's migration advisory lock and fail with P1002.
+// Retry with backoff instead of failing the whole build.
+const MAX_ATTEMPTS = 4;
+for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+  try {
+    execSync("npx prisma migrate deploy", { stdio: "inherit" });
+    break;
+  } catch (err) {
+    if (attempt === MAX_ATTEMPTS) throw err;
+    const waitSeconds = attempt * 15;
+    console.log(
+      `[deploy-db] migrate deploy failed (attempt ${attempt}/${MAX_ATTEMPTS}) — retrying in ${waitSeconds}s...`
+    );
+    await new Promise((resolve) => setTimeout(resolve, waitSeconds * 1000));
+  }
+}
 
 const { PrismaClient } = await import("@prisma/client");
 const prisma = new PrismaClient();

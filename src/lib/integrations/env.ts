@@ -116,8 +116,17 @@ export function isWebhookSecretConfigured(): boolean {
   return Boolean(env("WEBHOOK_SECRET") ?? env("MEDFLOW_WEBHOOK_SECRET"));
 }
 
+/**
+ * SMS_LIVE_OVERRIDE=1 enables live SMS even while MOCK_MODE keeps every
+ * other integration mocked — a scoped escape hatch for testing real texting
+ * without flipping the global kill-switch.
+ */
+export function isSmsLiveOverride(): boolean {
+  return envTruthy("SMS_LIVE_OVERRIDE") && isTwilioConfigured();
+}
+
 export function isTwilioLive(): boolean {
-  return canUseLiveIntegrations() && isTwilioConfigured();
+  return (canUseLiveIntegrations() || isSmsLiveOverride()) && isTwilioConfigured();
 }
 
 export function isGmailLive(): boolean {

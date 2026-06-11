@@ -610,19 +610,34 @@ export const reminderEngineService = {
       outcome = terminalOutcome;
     }
 
-    const reminderLog = await reminderLogModel.create({
-      data: {
-        appointmentId,
-        clientId: appointment.clientId,
-        reminderOffset: offset,
-        outcome,
-        dueAt,
-        voiceCallLogId,
-        smsLogId,
-        emailLogId,
-        metadata: meta as Prisma.InputJsonValue,
-      },
-    });
+    let reminderLog;
+    try {
+      reminderLog = await reminderLogModel.create({
+        data: {
+          appointmentId,
+          clientId: appointment.clientId,
+          reminderOffset: offset,
+          outcome,
+          dueAt,
+          voiceCallLogId,
+          smsLogId,
+          emailLogId,
+          metadata: meta as Prisma.InputJsonValue,
+        },
+      });
+    } catch (e) {
+      // Concurrent cycle won the unique (appointmentId, reminderOffset) race.
+      if (
+        e instanceof Prisma.PrismaClientKnownRequestError &&
+        e.code === "P2002"
+      ) {
+        throw new ReminderEngineError(
+          "Reminder already sent for this window",
+          "DUPLICATE_CYCLE"
+        );
+      }
+      throw e;
+    }
 
     await addTimelineEvent({
       clientId: appointment.clientId,

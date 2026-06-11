@@ -1,20 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requirePermission } from "@/lib/api-auth";
 import { prisma } from "@/lib/prisma";
+import {
+  assertClientDataAccess,
+  dataAccessErrorResponse,
+} from "@/lib/security/data-access";
 import { getClientTimeline } from "@/lib/timeline";
 
 type RouteContext = { params: { id: string } };
 
-export async function GET(_request: NextRequest, { params }: RouteContext) {
-  const { error, user } = await requirePermission("clients:read");
+export async function GET(request: NextRequest, { params }: RouteContext) {
+  const { error, user, meta } = await requirePermission("clients:read", request);
   if (error) return error;
 
-  const client = await prisma.client.findUnique({
-    where: { id: params.id },
-    select: { id: true },
-  });
-  if (!client) {
-    return NextResponse.json({ error: "Client not found" }, { status: 404 });
+  try {
+    await assertClientDataAccess({
+      user: user!,
+      clientId: params.id,
+      action: "read",
+      meta,
+    });
+  } catch (e) {
+    const denied = dataAccessErrorResponse(e);
+    if (denied) return denied;
+    throw e;
   }
 
   const events = await getClientTimeline(params.id);

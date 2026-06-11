@@ -15,6 +15,15 @@ function env(key: string): string | undefined {
   return v && v.trim().length > 0 ? v.trim() : undefined;
 }
 
+/** Fail fast with a clear message instead of passing undefined credentials to providers. */
+function requireEnv(key: string): string {
+  const v = env(key);
+  if (!v) {
+    throw new Error(`Missing required environment variable: ${key}`);
+  }
+  return v;
+}
+
 function envTruthy(key: string): boolean {
   const v = env(key)?.toLowerCase();
   return v === "1" || v === "true" || v === "yes";
@@ -180,9 +189,9 @@ export function integrationStatusSnapshot() {
 
 export function twilioConfig() {
   return {
-    accountSid: env("TWILIO_ACCOUNT_SID")!,
-    authToken: env("TWILIO_AUTH_TOKEN")!,
-    phoneNumber: env("TWILIO_PHONE_NUMBER")!,
+    accountSid: requireEnv("TWILIO_ACCOUNT_SID"),
+    authToken: requireEnv("TWILIO_AUTH_TOKEN"),
+    phoneNumber: requireEnv("TWILIO_PHONE_NUMBER"),
   };
 }
 
@@ -200,7 +209,7 @@ export function emailFromAddress(): string | undefined {
 
 export function openAiConfig() {
   return {
-    apiKey: env("OPENAI_API_KEY")!,
+    apiKey: requireEnv("OPENAI_API_KEY"),
     model: env("OPENAI_MODEL") ?? "gpt-4o-mini",
   };
 }
@@ -211,34 +220,39 @@ export function googleOAuthConfig() {
     env("GOOGLE_CLIENT_SECRET") ?? env("GMAIL_CLIENT_SECRET");
   const refreshToken =
     env("GOOGLE_REFRESH_TOKEN") ?? env("GMAIL_REFRESH_TOKEN");
+  if (!clientId || !clientSecret || !refreshToken) {
+    throw new Error(
+      "Google OAuth not configured: set GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET/GOOGLE_REFRESH_TOKEN (or GMAIL_* equivalents)"
+    );
+  }
   return {
-    clientId: clientId!,
-    clientSecret: clientSecret!,
-    refreshToken: refreshToken!,
+    clientId,
+    clientSecret,
+    refreshToken,
     calendarId: env("GOOGLE_CALENDAR_ID") ?? "primary",
   };
 }
 
 export function gmailOAuthConfig() {
   return {
-    clientId: env("GMAIL_CLIENT_ID")!,
-    clientSecret: env("GMAIL_CLIENT_SECRET")!,
-    refreshToken: env("GMAIL_REFRESH_TOKEN")!,
+    clientId: requireEnv("GMAIL_CLIENT_ID"),
+    clientSecret: requireEnv("GMAIL_CLIENT_SECRET"),
+    refreshToken: requireEnv("GMAIL_REFRESH_TOKEN"),
     fromEmail: emailFromAddress(),
   };
 }
 
 export function vapiConfig() {
   return {
-    apiKey: env("VAPI_API_KEY")!,
-    assistantId: env("VAPI_ASSISTANT_ID")!,
+    apiKey: requireEnv("VAPI_API_KEY"),
+    assistantId: requireEnv("VAPI_ASSISTANT_ID"),
     phoneNumberId: env("VAPI_PHONE_NUMBER_ID"),
   };
 }
 
 export function retellConfig() {
   return {
-    apiKey: env("RETELL_API_KEY")!,
-    agentId: env("RETELL_AGENT_ID")!,
+    apiKey: requireEnv("RETELL_API_KEY"),
+    agentId: requireEnv("RETELL_AGENT_ID"),
   };
 }

@@ -99,3 +99,59 @@ describe("validateTwilioSignature", () => {
     expect(validateTwilioSignature(req, rawBody, url).ok).toBe(false);
   });
 });
+
+describe("validateTwilioSignature (SignalWire compatibility)", () => {
+  const prevTwilio = process.env.TWILIO_AUTH_TOKEN;
+  const prevSignalWire = process.env.SIGNALWIRE_API_TOKEN;
+
+  beforeAll(() => {
+    delete process.env.TWILIO_AUTH_TOKEN;
+    process.env.SIGNALWIRE_API_TOKEN = "signalwire-api-token";
+  });
+  afterAll(() => {
+    process.env.TWILIO_AUTH_TOKEN = prevTwilio;
+    process.env.SIGNALWIRE_API_TOKEN = prevSignalWire;
+  });
+
+  const url = "https://example.com/api/webhooks/twilio/sms";
+  const rawBody = "MessageSid=SM123&SmsStatus=received&From=%2B15551234567&Body=hello";
+
+  function sign(token: string): string {
+    const params = new URLSearchParams(rawBody);
+    let data = url;
+    for (const key of Array.from(params.keys()).sort()) {
+      data += key + params.get(key);
+    }
+    return createHmac("sha1", token).update(data).digest("base64");
+  }
+
+  function makeRequest(headers: Record<string, string>) {
+    return new NextRequest(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/x-www-form-urlencoded",
+        ...headers,
+      },
+      body: rawBody,
+    });
+  }
+
+  it("accepts a SignalWire token signature on the x-signalwire-signature header", () => {
+    const req = makeRequest({
+      "x-signalwire-signature": sign("signalwire-api-token"),
+    });
+    expect(validateTwilioSignature(req, rawBody, url).ok).toBe(true);
+  });
+
+  it("accepts a SignalWire token signature on the x-twilio-signature header", () => {
+    const req = makeRequest({
+      "x-twilio-signature": sign("signalwire-api-token"),
+    });
+    expect(validateTwilioSignature(req, rawBody, url).ok).toBe(true);
+  });
+
+  it("rejects a signature made with an unknown token", () => {
+    const req = makeRequest({ "x-signalwire-signature": sign("wrong-token") });
+    expect(validateTwilioSignature(req, rawBody, url).ok).toBe(false);
+  });
+});

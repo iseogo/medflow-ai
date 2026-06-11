@@ -43,12 +43,29 @@ export function canUseLiveIntegrations(): boolean {
   return !isMockModeForced();
 }
 
-export function isTwilioConfigured(): boolean {
+export function isSignalWireConfigured(): boolean {
   return Boolean(
-    env("TWILIO_ACCOUNT_SID") &&
-      env("TWILIO_AUTH_TOKEN") &&
-      env("TWILIO_PHONE_NUMBER")
+    env("SIGNALWIRE_SPACE_URL") &&
+      env("SIGNALWIRE_PROJECT_ID") &&
+      env("SIGNALWIRE_API_TOKEN") &&
+      env("SIGNALWIRE_PHONE_NUMBER")
   );
+}
+
+export function isTwilioConfigured(): boolean {
+  return (
+    isSignalWireConfigured() ||
+    Boolean(
+      env("TWILIO_ACCOUNT_SID") &&
+        env("TWILIO_AUTH_TOKEN") &&
+        env("TWILIO_PHONE_NUMBER")
+    )
+  );
+}
+
+/** Active SMS/voice provider — SignalWire wins when both are configured. */
+export function smsProviderName(): "signalwire" | "twilio" {
+  return isSignalWireConfigured() ? "signalwire" : "twilio";
 }
 
 export function isGmailConfigured(): boolean {
@@ -187,11 +204,30 @@ export function integrationStatusSnapshot() {
   };
 }
 
+/**
+ * Twilio-compatible REST config. SignalWire's LaML API mirrors Twilio's
+ * 2010-04-01 surface, so the same client code works against either —
+ * only the base URL and credentials change.
+ */
 export function twilioConfig() {
+  if (isSignalWireConfigured()) {
+    const space = requireEnv("SIGNALWIRE_SPACE_URL")
+      .replace(/^https?:\/\//, "")
+      .replace(/\/$/, "");
+    return {
+      provider: "signalwire" as const,
+      accountSid: requireEnv("SIGNALWIRE_PROJECT_ID"),
+      authToken: requireEnv("SIGNALWIRE_API_TOKEN"),
+      phoneNumber: requireEnv("SIGNALWIRE_PHONE_NUMBER"),
+      apiBaseUrl: `https://${space}/api/laml/2010-04-01`,
+    };
+  }
   return {
+    provider: "twilio" as const,
     accountSid: requireEnv("TWILIO_ACCOUNT_SID"),
     authToken: requireEnv("TWILIO_AUTH_TOKEN"),
     phoneNumber: requireEnv("TWILIO_PHONE_NUMBER"),
+    apiBaseUrl: "https://api.twilio.com/2010-04-01",
   };
 }
 

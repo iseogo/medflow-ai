@@ -569,6 +569,8 @@ model CallLog {
   @@index([clientId])
   @@index([appointmentId])
   @@index([status])
+  @@index([direction, createdAt])
+  @@index([status, createdAt])
   @@index([clientId, appointmentId, purpose, channel])
 }
 
@@ -596,6 +598,7 @@ model SmsLog {
   @@index([clientId])
   @@index([appointmentId])
   @@index([status])
+  @@index([status, createdAt])
   @@index([clientId, appointmentId, purpose, channel])
 }
 
@@ -624,6 +627,7 @@ model EmailLog {
   @@index([clientId])
   @@index([appointmentId])
   @@index([status])
+  @@index([status, createdAt])
   @@index([clientId, appointmentId, purpose, channel])
 }
 

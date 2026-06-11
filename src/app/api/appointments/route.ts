@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createAuditLog } from "@/lib/audit";
 import { requirePermission } from "@/lib/api-auth";
+import { logger } from "@/lib/logger";
 import { prisma } from "@/lib/prisma";
 import {
   AppointmentOverlapError,
@@ -49,7 +50,12 @@ export async function POST(request: NextRequest) {
   const { error, user } = await requirePermission("appointments:write");
   if (error) return error;
 
-  const body = await request.json();
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json(
@@ -95,22 +101,33 @@ export async function POST(request: NextRequest) {
     include: { client: true },
   });
 
-  await addTimelineEvent({
-    clientId: appointment.clientId,
-    eventType: "APPOINTMENT_CREATED",
-    title: "Appointment scheduled",
-    description: appointment.reason ?? undefined,
-    metadata: { appointmentId: appointment.id, status: appointment.status },
-    actorUserId: user!.id,
-  });
-
-  await createAuditLog({
-    action: "CREATE",
-    entityType: "Appointment",
-    entityId: appointment.id,
-    userId: user!.id,
-    clientId: appointment.clientId,
-  });
+  // The appointment is durably created; timeline/audit side effects must not
+  // turn the response into a 500 (clients would retry and double-book).
+  const sideEffects = await Promise.allSettled([
+    addTimelineEvent({
+      clientId: appointment.clientId,
+      eventType: "APPOINTMENT_CREATED",
+      title: "Appointment scheduled",
+      description: appointment.reason ?? undefined,
+      metadata: { appointmentId: appointment.id, status: appointment.status },
+      actorUserId: user!.id,
+    }),
+    createAuditLog({
+      action: "CREATE",
+      entityType: "Appointment",
+      entityId: appointment.id,
+      userId: user!.id,
+      clientId: appointment.clientId,
+    }),
+  ]);
+  for (const r of sideEffects) {
+    if (r.status === "rejected") {
+      logger.error("appointment_create_side_effect_failed", {
+        appointmentId: appointment.id,
+        error: r.reason instanceof Error ? r.reason.message : String(r.reason),
+      });
+    }
+  }
 
   return NextResponse.json(appointment, { status: 201 });
 }

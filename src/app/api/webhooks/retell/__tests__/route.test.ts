@@ -2,6 +2,14 @@
  * @jest-environment node
  */
 import { NextRequest } from "next/server";
+
+jest.mock("@/lib/audit", () => ({
+  createAuditLog: jest.fn().mockResolvedValue(undefined),
+}));
+jest.mock("@/lib/missed-call/process-inbound-missed-webhook", () => ({
+  processInboundMissedWebhook: jest.fn().mockResolvedValue({ recorded: false }),
+}));
+
 import { POST } from "../route";
 
 describe("POST /api/webhooks/retell", () => {

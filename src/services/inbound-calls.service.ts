@@ -69,7 +69,7 @@ export const inboundCallsService = {
 
     if (calls.length === 0) return [];
 
-    const callIds = calls.map((c) => c.id);
+    const callIds = new Set(calls.map((c) => c.id));
     const clientIds = Array.from(new Set(calls.map((c) => c.clientId)));
 
     const [notifications, tasks] = await Promise.all([
@@ -108,11 +108,20 @@ export const inboundCallsService = {
     >();
     for (const n of notifications) {
       const meta = n.metadata as { callLogId?: string } | null;
-      if (meta?.callLogId && callIds.includes(meta.callLogId)) {
+      if (meta?.callLogId && callIds.has(meta.callLogId)) {
         if (!notificationByCallId.has(meta.callLogId)) {
           notificationByCallId.set(meta.callLogId, n);
         }
       }
+    }
+
+    const taskById = new Map(tasks.map((t) => [t.id, t]));
+    const tasksByClientId = new Map<string, typeof tasks>();
+    for (const t of tasks) {
+      if (!t.clientId) continue;
+      const list = tasksByClientId.get(t.clientId);
+      if (list) list.push(t);
+      else tasksByClientId.set(t.clientId, [t]);
     }
 
     return calls.map((call) => {
@@ -122,14 +131,15 @@ export const inboundCallsService = {
 
       const task =
         (notification?.staffTaskId
-          ? tasks.find((t) => t.id === notification.staffTaskId)
+          ? taskById.get(notification.staffTaskId)
           : null) ??
-        tasks.find(
-          (t) =>
-            t.clientId === call.clientId &&
-            Math.abs(t.createdAt.getTime() - call.createdAt.getTime()) <
+        tasksByClientId
+          .get(call.clientId)
+          ?.find(
+            (t) =>
+              Math.abs(t.createdAt.getTime() - call.createdAt.getTime()) <
               5 * 60_000
-        );
+          );
 
       return {
         id: call.id,

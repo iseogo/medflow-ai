@@ -108,6 +108,13 @@ const ROLES: { type: RoleType; name: string; description: string }[] = [
 ];
 
 async function main() {
+  if (process.env.NODE_ENV === "production" && !process.env.SEED_ADMIN_PASSWORD) {
+    throw new Error(
+      "Refusing to seed production with the default admin password. " +
+        "Set SEED_ADMIN_PASSWORD (and SEED_ADMIN_EMAIL) before running the seed."
+    );
+  }
+
   console.log("Seeding MedFlow (Phases 1–4)...");
 
   for (const role of ROLES) {

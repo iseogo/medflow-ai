@@ -16,7 +16,15 @@ export type CalendarEventResult = {
   mode: "live" | "mock";
 };
 
+let tokenCache: { token: string; expiresAt: number } | null = null;
+
 async function getAccessToken(): Promise<string> {
+  // Reuse the token until shortly before expiry to avoid hitting Google's
+  // token endpoint (and its rate limits) on every calendar operation.
+  if (tokenCache && tokenCache.expiresAt > Date.now()) {
+    return tokenCache.token;
+  }
+
   const { clientId, clientSecret, refreshToken } = googleOAuthConfig();
   const res = await integrationFetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -32,7 +40,13 @@ async function getAccessToken(): Promise<string> {
   if (!res.ok) {
     throw new IntegrationHttpError("Google OAuth failed", res.status, "[redacted]");
   }
-  return (JSON.parse(text) as { access_token: string }).access_token;
+  const json = JSON.parse(text) as { access_token: string; expires_in?: number };
+  const ttlSeconds = Math.max((json.expires_in ?? 3600) - 60, 60);
+  tokenCache = {
+    token: json.access_token,
+    expiresAt: Date.now() + ttlSeconds * 1000,
+  };
+  return json.access_token;
 }
 
 export const googleCalendarService = {

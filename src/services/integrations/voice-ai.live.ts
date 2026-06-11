@@ -4,6 +4,7 @@ import {
   retellConfig,
   vapiConfig,
 } from "@/lib/integrations/env";
+import { formatClinicDateTime } from "@/lib/datetime";
 import { IntegrationHttpError, integrationFetch } from "@/lib/integrations/http";
 import type { AiVoiceReminderIntent } from "../voice-ai-reminder.service";
 
@@ -39,6 +40,7 @@ export async function vapiLiveReminderCall(input: {
       variableValues: {
         clientFirstName: input.clientFirstName,
         appointmentAt: input.appointmentAt.toISOString(),
+        appointmentAtSpoken: formatClinicDateTime(input.appointmentAt),
         providerName: input.providerName ?? "your provider",
       },
     },
@@ -104,6 +106,7 @@ export async function retellLiveReminderCall(input: {
         retell_llm_dynamic_variables: {
           client_first_name: input.clientFirstName,
           appointment_at: input.appointmentAt.toISOString(),
+          appointment_at_spoken: formatClinicDateTime(input.appointmentAt),
           provider_name: input.providerName ?? "your provider",
         },
       }),

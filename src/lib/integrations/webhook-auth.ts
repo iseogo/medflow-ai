@@ -113,7 +113,8 @@ export function validateTwilioSignature(
     data += key + params.get(key);
   }
 
-  const expected = createHmac("sha256", authToken)
+  // Twilio signs with HMAC-SHA1 (base64) per their request-validation spec.
+  const expected = createHmac("sha1", authToken)
     .update(data)
     .digest("base64");
 

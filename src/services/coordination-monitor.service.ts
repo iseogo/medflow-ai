@@ -200,33 +200,35 @@ export const coordinationMonitorService = {
       byAgent.set(row.agentType, cur);
     }
 
-    for (const [agentTypeKey, stats] of Array.from(byAgent.entries())) {
-      const agentType = agentTypeKey as AgentType;
-      await prisma.agentPerformanceMetric.upsert({
-        where: {
-          agentType_periodStart_periodEnd: {
+    await prisma.$transaction(
+      Array.from(byAgent.entries()).map(([agentTypeKey, stats]) => {
+        const agentType = agentTypeKey as AgentType;
+        return prisma.agentPerformanceMetric.upsert({
+          where: {
+            agentType_periodStart_periodEnd: {
+              agentType,
+              periodStart,
+              periodEnd,
+            },
+          },
+          create: {
             agentType,
             periodStart,
             periodEnd,
+            proposalsSubmitted: stats.submitted,
+            proposalsApproved: stats.approved,
+            proposalsRejected: stats.rejected,
+            proposalsEscalated: stats.escalated,
           },
-        },
-        create: {
-          agentType,
-          periodStart,
-          periodEnd,
-          proposalsSubmitted: stats.submitted,
-          proposalsApproved: stats.approved,
-          proposalsRejected: stats.rejected,
-          proposalsEscalated: stats.escalated,
-        },
-        update: {
-          proposalsSubmitted: stats.submitted,
-          proposalsApproved: stats.approved,
-          proposalsRejected: stats.rejected,
-          proposalsEscalated: stats.escalated,
-        },
-      });
-    }
+          update: {
+            proposalsSubmitted: stats.submitted,
+            proposalsApproved: stats.approved,
+            proposalsRejected: stats.rejected,
+            proposalsEscalated: stats.escalated,
+          },
+        });
+      })
+    );
 
     return byAgent.size;
   },

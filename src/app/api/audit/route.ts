@@ -8,10 +8,10 @@ export async function GET(request: NextRequest) {
 
   const entityType = request.nextUrl.searchParams.get("entityType");
   const clientId = request.nextUrl.searchParams.get("clientId");
-  const limit = Math.min(
-    parseInt(request.nextUrl.searchParams.get("limit") ?? "50", 10),
-    200
-  );
+  const parsedLimit = parseInt(request.nextUrl.searchParams.get("limit") ?? "50", 10);
+  const limit = Number.isFinite(parsedLimit)
+    ? Math.min(Math.max(parsedLimit, 1), 200)
+    : 50;
 
   const logs = await prisma.auditLog.findMany({
     where: {

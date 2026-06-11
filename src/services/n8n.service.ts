@@ -39,6 +39,7 @@ async function stubTrigger(input: {
 async function liveTrigger(input: {
   workflowName: string;
   payload: Record<string, unknown>;
+  idempotencyKey?: string;
 }): Promise<StubWorkflowResult> {
   const webhookUrl = resolveN8nWebhookUrl(input.workflowName);
   if (!webhookUrl) {
@@ -50,10 +51,14 @@ async function liveTrigger(input: {
     headers: {
       "Content-Type": "application/json",
       ...webhookSecretHeader(),
+      ...(input.idempotencyKey
+        ? { "x-idempotency-key": input.idempotencyKey }
+        : {}),
     },
     body: JSON.stringify({
       workflow: input.workflowName,
       payload: input.payload,
+      idempotencyKey: input.idempotencyKey,
       timestamp: new Date().toISOString(),
     }),
   });
@@ -87,9 +92,14 @@ export const n8nService = {
     return isN8nLive() ? "live" : "mock";
   },
 
+  /**
+   * `idempotencyKey` should be deterministic for the triggering record
+   * (e.g. the log ID) so retried requests don't run the workflow twice.
+   */
   async triggerWorkflow(input: {
     workflowName: string;
     payload: Record<string, unknown>;
+    idempotencyKey?: string;
   }): Promise<StubWorkflowResult> {
     if (!isN8nLive()) {
       return stubTrigger(input);

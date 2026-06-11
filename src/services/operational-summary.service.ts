@@ -8,7 +8,9 @@ import {
 } from "@/services/missed-call.service";
 
 const DELAYED_WAIT_MINUTES = 30;
-const LOOKBACK_7D = new Date(Date.now() - 7 * 86400_000);
+const SUMMARY_CACHE_TTL_MS = 5_000;
+
+let summaryCache: { value: OperationalSummary; expiresAt: number } | null = null;
 
 export type OperationalSummary = {
   todayStart: Date;
@@ -49,7 +51,13 @@ export type OperationalSummary = {
 
 export const operationalSummaryService = {
   async getSummary(): Promise<OperationalSummary> {
+    if (summaryCache && summaryCache.expiresAt > Date.now()) {
+      return summaryCache.value;
+    }
+
     const { todayStart, todayEnd } = getOperationalDayBounds();
+    // Computed per call — a module-level constant would drift on a long-running server.
+    const LOOKBACK_7D = new Date(Date.now() - 7 * 86400_000);
 
     const [
       appointmentsToday,
@@ -196,7 +204,7 @@ export const operationalSummaryService = {
       prisma.staffOverride.count({ where: { createdAt: { gte: LOOKBACK_7D } } }),
     ]);
 
-    return {
+    const summary: OperationalSummary = {
       todayStart,
       todayEnd,
       appointmentsToday,
@@ -232,5 +240,8 @@ export const operationalSummaryService = {
       exportEvents7d,
       staffOverrides7d,
     };
+
+    summaryCache = { value: summary, expiresAt: Date.now() + SUMMARY_CACHE_TTL_MS };
+    return summary;
   },
 };

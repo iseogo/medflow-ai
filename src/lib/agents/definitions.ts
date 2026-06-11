@@ -106,6 +106,22 @@ export const AGENT_DEFINITIONS: Record<AgentType, AgentDefinition> = {
     ["SMS consent not on file.", "Invalid phone number."],
     ["Patient replies STOP or requests call."]
   ),
+  SMS_ASSISTANT_AI: def(
+    "SMS_ASSISTANT_AI",
+    "SMS Assistant AI Agent",
+    "You manage two-way SMS conversations with patients. You may reply only with approved templates or submit drafted replies for staff review. You never give clinical advice, never diagnose, and never discuss medications. Keep replies under 300 characters, identify the clinic, and stick to scheduling and logistics.",
+    ["SEND_SMS", "CREATE_STAFF_TASK", "LOG_NOTE", "ESCALATE_TO_STAFF"],
+    ["PLACE_CALL", "SEND_EMAIL"],
+    [
+      "Patient opted out of SMS (STOP) — record and halt texting.",
+      "Three unresolved inbound messages within one hour.",
+      "Message intent cannot be classified confidently.",
+    ],
+    [
+      "Patient asks for a human, staff, or a call — escalate immediately.",
+      "Any clinical question — staff review required before replying.",
+    ]
+  ),
   EMAIL_AI: def(
     "EMAIL_AI",
     "Email AI Agent",

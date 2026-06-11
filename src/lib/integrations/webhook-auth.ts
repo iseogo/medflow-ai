@@ -83,8 +83,15 @@ export function validateTwilioSignature(
   rawBody: string,
   url: string
 ): { ok: true } | { ok: false; response: NextResponse } {
-  const authToken = process.env.TWILIO_AUTH_TOKEN?.trim();
-  if (!authToken) {
+  // SignalWire's compatibility (LaML) webhooks use the same HMAC-SHA1 scheme
+  // as Twilio, signed with the project API token.
+  const tokens = [
+    process.env.TWILIO_AUTH_TOKEN?.trim(),
+    process.env.SIGNALWIRE_API_TOKEN?.trim(),
+    process.env.SIGNALWIRE_SIGNING_KEY?.trim(),
+  ].filter((t): t is string => Boolean(t && t.length > 0));
+
+  if (tokens.length === 0) {
     const allowDev =
       process.env.MEDFLOW_WEBHOOK_ALLOW_UNAUTHENTICATED === "true" &&
       process.env.NODE_ENV !== "production";
@@ -98,7 +105,9 @@ export function validateTwilioSignature(
     };
   }
 
-  const signature = request.headers.get("x-twilio-signature");
+  const signature =
+    request.headers.get("x-twilio-signature") ??
+    request.headers.get("x-signalwire-signature");
   if (!signature) {
     return {
       ok: false,
@@ -114,12 +123,11 @@ export function validateTwilioSignature(
   }
 
   // Twilio signs with HMAC-SHA1 (base64) per their request-validation spec.
-  const expected = createHmac("sha1", authToken)
-    .update(data)
-    .digest("base64");
-
-  if (safeEqual(signature, expected)) {
-    return { ok: true };
+  for (const token of tokens) {
+    const expected = createHmac("sha1", token).update(data).digest("base64");
+    if (safeEqual(signature, expected)) {
+      return { ok: true };
+    }
   }
 
   return {

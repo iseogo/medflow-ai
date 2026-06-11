@@ -37,25 +37,36 @@ function mapCallStatus(twilioStatus: string): LiveCallResult["status"] {
   }
 }
 
+function smsStatusCallbackUrl(): string | undefined {
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXTAUTH_URL;
+  return appUrl && process.env.NODE_ENV === "production"
+    ? `${appUrl.replace(/\/$/, "")}/api/webhooks/twilio/sms`
+    : undefined;
+}
+
 export async function twilioLiveSendSms(input: {
   to: string;
   from?: string;
   body: string;
 }): Promise<LiveSmsResult> {
-  const { accountSid, authToken, phoneNumber } = twilioConfig();
+  const { accountSid, authToken, phoneNumber, apiBaseUrl } = twilioConfig();
+  const form: Record<string, string> = {
+    To: input.to,
+    From: input.from ?? phoneNumber,
+    Body: input.body,
+  };
+  const statusCallback = smsStatusCallbackUrl();
+  if (statusCallback) form.StatusCallback = statusCallback;
+
   const res = await integrationFetch(
-    `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
+    `${apiBaseUrl}/Accounts/${accountSid}/Messages.json`,
     {
       method: "POST",
       headers: {
         Authorization: basicAuthHeader(accountSid, authToken),
         "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: formBody({
-        To: input.to,
-        From: input.from ?? phoneNumber,
-        Body: input.body,
-      }),
+      body: formBody(form),
     }
   );
 
@@ -80,7 +91,7 @@ export async function twilioLivePlaceCall(input: {
   from?: string;
   direction: "INBOUND" | "OUTBOUND";
 }): Promise<LiveCallResult> {
-  const { accountSid, authToken, phoneNumber } = twilioConfig();
+  const { accountSid, authToken, phoneNumber, apiBaseUrl } = twilioConfig();
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? process.env.NEXTAUTH_URL;
   const statusCallback =
     appUrl && process.env.NODE_ENV === "production"
@@ -97,7 +108,7 @@ export async function twilioLivePlaceCall(input: {
   }
 
   const res = await integrationFetch(
-    `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Calls.json`,
+    `${apiBaseUrl}/Accounts/${accountSid}/Calls.json`,
     {
       method: "POST",
       headers: {

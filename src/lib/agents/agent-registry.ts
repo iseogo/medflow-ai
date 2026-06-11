@@ -106,6 +106,14 @@ export const AGENT_REGISTRY: Record<AgentType, AgentRegistryEntry> = {
     ["SEND_SMS", "LOG_NOTE", "ESCALATE_TO_STAFF"],
     ["reminders_sms"]
   ),
+  SMS_ASSISTANT_AI: entry(
+    "SMS_ASSISTANT_AI",
+    "SMS Assistant AI",
+    "Two-way SMS: reads inbound patient texts, replies with approved templates, drafts answers for staff review, and escalates to staff when needed.",
+    ["SEND_SMS", "CREATE_STAFF_TASK", "LOG_NOTE", "ESCALATE_TO_STAFF"],
+    ["inbound_sms", "sms_two_way", "sms_escalation"],
+    { notifications: true, staffTasks: true, clientTimeline: true }
+  ),
   EMAIL_AI: entry(
     "EMAIL_AI",
     "Email AI",
@@ -144,6 +152,16 @@ export const AGENT_REGISTRY: Record<AgentType, AgentRegistryEntry> = {
 };
 
 export const AGENT_HANDOFF_CHAIN = [
+  {
+    id: "inbound_sms",
+    steps: [
+      "Webhook (twilio sms / medflow sms / simulator) → smsConversationService.processInboundSms",
+      "SmsLog (direction INBOUND) + AuditLog + ClientTimelineEvent",
+      "Intent classification (emergency scan first, then rule-based intents)",
+      "SMS_ASSISTANT_AI → Master Orchestrator proposal (template reply auto-approved; drafted reply pending staff review)",
+      "Escalation path: ESCALATE_TO_STAFF → StaffIntervention + StaffNotification; emergency → automation halt + urgent task",
+    ],
+  },
   {
     id: "inbound_missed",
     steps: [

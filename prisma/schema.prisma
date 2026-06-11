@@ -115,6 +115,7 @@ enum AgentType {
   APPOINTMENT_AI
   VOICE_CALL_AI
   SMS_REMINDER_AI
+  SMS_ASSISTANT_AI
   EMAIL_AI
   STAFF_ASSISTANT_AI
   ESCALATION_AI
@@ -583,6 +584,7 @@ model SmsLog {
   status        CommunicationStatus @default(PENDING)
   purpose       String
   channel       CommunicationChannel @default(SMS)
+  direction     CallDirection       @default(OUTBOUND)
   toNumber      String?
   fromNumber    String?
   messageBody   String?
@@ -599,6 +601,7 @@ model SmsLog {
   @@index([appointmentId])
   @@index([status])
   @@index([status, createdAt])
+  @@index([direction, createdAt])
   @@index([clientId, appointmentId, purpose, channel])
 }
 

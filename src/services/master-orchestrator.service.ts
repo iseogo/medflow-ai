@@ -55,6 +55,26 @@ const EXECUTABLE_ACTIONS = new Set([
   "LOG_NOTE",
 ]);
 
+/**
+ * Fixed-template SMS replies from the SMS Assistant. Safe to auto-approve:
+ * the message text comes from code-owned templates, never from an LLM.
+ * LLM-drafted replies (sms_ai_drafted_reply) are NOT listed and stay
+ * PENDING_APPROVAL until staff reviews them.
+ */
+const SMS_ASSISTANT_AUTO_REPLY_PURPOSES = new Set([
+  "sms_auto_reply_confirm",
+  "sms_auto_reply_reschedule",
+  "sms_auto_reply_cancel",
+  "sms_auto_reply_handoff",
+  "sms_auto_reply_fallback",
+]);
+
+const SMS_ASSISTANT_AUTO_TASK_PURPOSES = new Set([
+  "sms_reschedule_request",
+  "sms_cancel_request",
+  "sms_follow_up",
+]);
+
 export class MasterOrchestratorError extends Error {
   constructor(
     message: string,
@@ -314,6 +334,37 @@ export const masterOrchestratorService = {
     ) {
       return this.applyReview(proposalId, "APPROVE", {
         orchestratorNotes: "Auto-approved: missed inbound call follow-up task",
+        reviewerLabel: "Master Orchestrator Agent",
+        autoExecute: true,
+      });
+    }
+
+    if (proposal.actionType === "ESCALATE_TO_STAFF") {
+      return this.applyReview(proposalId, "ESCALATE", {
+        orchestratorNotes: "Auto-escalated: agent requested staff handoff",
+        reviewerLabel: "Master Orchestrator Agent",
+      });
+    }
+
+    if (
+      proposal.agentType === "SMS_ASSISTANT_AI" &&
+      proposal.actionType === "SEND_SMS" &&
+      SMS_ASSISTANT_AUTO_REPLY_PURPOSES.has(proposal.purpose)
+    ) {
+      return this.applyReview(proposalId, "APPROVE", {
+        orchestratorNotes: "Auto-approved: fixed-template SMS reply",
+        reviewerLabel: "Master Orchestrator Agent",
+        autoExecute: true,
+      });
+    }
+
+    if (
+      proposal.agentType === "SMS_ASSISTANT_AI" &&
+      proposal.actionType === "CREATE_STAFF_TASK" &&
+      SMS_ASSISTANT_AUTO_TASK_PURPOSES.has(proposal.purpose)
+    ) {
+      return this.applyReview(proposalId, "APPROVE", {
+        orchestratorNotes: "Auto-approved: SMS conversation staff task",
         reviewerLabel: "Master Orchestrator Agent",
         autoExecute: true,
       });

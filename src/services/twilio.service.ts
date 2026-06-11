@@ -2,7 +2,7 @@
  * Twilio SMS + Voice — live only when MOCK_MODE is off and credentials are set.
  */
 
-import { isTwilioLive } from "@/lib/integrations/env";
+import { isTwilioLive, smsProviderName } from "@/lib/integrations/env";
 import { safeLogContext } from "@/lib/integrations/safe-log";
 import {
   twilioLivePlaceCall,
@@ -71,7 +71,7 @@ export const twilioService = {
       return stubSendSms({ body: input.body });
     }
     const result = await twilioLiveSendSms(input);
-    return { ...result, provider: "twilio" };
+    return { ...result, provider: smsProviderName() };
   },
 
   async placeCall(input: {
@@ -83,7 +83,7 @@ export const twilioService = {
       return stubPlaceCall({ direction: input.direction });
     }
     const result = await twilioLivePlaceCall(input);
-    return { ...result, provider: "twilio" };
+    return { ...result, provider: smsProviderName() };
   },
 };
 

@@ -213,15 +213,20 @@ export const orchestratorService = {
   async sendSms(input: SendSmsInput, ctx: OrchestratorContext = {}) {
     assertCommunicationAuthorized(ctx);
     await validateAppointment(input.clientId, input.appointmentId);
-    await assertOutboundCommunicationAllowed(
-      {
-        clientId: input.clientId,
-        appointmentId: input.appointmentId,
-        channel: "SMS",
-        purpose: input.purpose,
-      },
-      { userId: ctx.userId }
-    );
+    // Staff replies in a live SMS conversation legitimately repeat the same
+    // client + purpose within minutes — the idempotency window only guards
+    // automated sends. Staff actions always override AI guardrails.
+    if (ctx.source !== "staff") {
+      await assertOutboundCommunicationAllowed(
+        {
+          clientId: input.clientId,
+          appointmentId: input.appointmentId,
+          channel: "SMS",
+          purpose: input.purpose,
+        },
+        { userId: ctx.userId }
+      );
+    }
 
     const to = input.toNumber ?? (await resolveClientPhone(input.clientId));
 
@@ -230,6 +235,7 @@ export const orchestratorService = {
         clientId: input.clientId,
         appointmentId: input.appointmentId ?? undefined,
         purpose: input.purpose,
+        direction: "OUTBOUND",
         toNumber: to,
         messageBody: input.messageBody,
         status: "PENDING",

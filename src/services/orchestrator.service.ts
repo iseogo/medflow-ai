@@ -132,6 +132,7 @@ export const orchestratorService = {
     await n8nService.triggerWorkflow({
       workflowName: "communication_call",
       payload: { callLogId: log.id, clientId: input.clientId, purpose: input.purpose },
+      idempotencyKey: `communication_call:${log.id}`,
     });
 
     const stub = await twilioService.placeCall({
@@ -239,6 +240,7 @@ export const orchestratorService = {
     await n8nService.triggerWorkflow({
       workflowName: "communication_sms",
       payload: { smsLogId: log.id, clientId: input.clientId },
+      idempotencyKey: `communication_sms:${log.id}`,
     });
 
     const stub = await twilioService.sendSms({ to, body: input.messageBody });
@@ -302,6 +304,7 @@ export const orchestratorService = {
     await n8nService.triggerWorkflow({
       workflowName: "communication_email",
       payload: { emailLogId: log.id, clientId: input.clientId },
+      idempotencyKey: `communication_email:${log.id}`,
     });
 
     const stub = await emailService.sendEmail({

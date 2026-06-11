@@ -113,6 +113,11 @@ async function upsertWaitingRoomForCheckIn(
     override: Record<string, unknown>;
   }
 ) {
+  // Serialize concurrent check-ins for the same client: without this, two
+  // simultaneous transactions can both miss the findFirst and create
+  // duplicate active waiting-room rows. Lock is released at transaction end.
+  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`waiting-room:${params.clientId}`}))`;
+
   const existing = await tx.waitingRoomStatus.findFirst({
     where: {
       clientId: params.clientId,

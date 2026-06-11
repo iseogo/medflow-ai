@@ -13,6 +13,7 @@ import { DuplicateCommunicationError } from "@/lib/communication-dedup";
 import { assertOutboundCommunicationAllowed } from "@/lib/reliability/communication-idempotency";
 import { workflowGuard } from "@/lib/reliability/workflow-guard";
 import { recordCommunicationTimelineAndAudit } from "@/lib/communication-log";
+import { formatClinicDateTime } from "@/lib/datetime";
 import { prisma } from "@/lib/prisma";
 import type { ReminderOutcome, ReminderScheduleOffset } from "@/lib/reminder-types";
 import { REMINDER_SCHEDULE_OFFSETS } from "@/lib/reminder-types";
@@ -508,6 +509,7 @@ export const reminderEngineService = {
       await n8nService.triggerWorkflow({
         workflowName: "reminder_voice_ai",
         payload: { callLogId: callLog.id, appointmentId },
+        idempotencyKey: `reminder_voice_ai:${callLog.id}`,
       });
 
       const handled = await applyClientIntent(
@@ -536,7 +538,7 @@ export const reminderEngineService = {
     if (smsOk && !skipSmsEmail) {
       const smsPurpose = purposeSms(appointmentId, offset);
       try {
-        const body = `Reminder: appointment on ${appointment.scheduledAt.toISOString().slice(0, 16)} — reply not monitored (stub).`;
+        const body = `Reminder: appointment on ${formatClinicDateTime(appointment.scheduledAt)} — reply not monitored (stub).`;
         const sms = await orchestratorService.sendSms(
           {
             clientId: appointment.clientId,
@@ -563,7 +565,7 @@ export const reminderEngineService = {
             appointmentId,
             purpose: emailPurpose,
             subject: `Appointment reminder — ${appointment.reason ?? "visit"}`,
-            body: `Hello ${appointment.client.firstName},\n\nThis is a reminder for your visit scheduled at ${appointment.scheduledAt.toISOString()}.\n\n— MedFlow AI (stub)\n`,
+            body: `Hello ${appointment.client.firstName},\n\nThis is a reminder for your visit scheduled at ${formatClinicDateTime(appointment.scheduledAt)}.\n\n— MedFlow AI (stub)\n`,
             toEmail,
           },
           ctx

@@ -410,6 +410,41 @@ async function main() {
     },
   });
 
+  // Sample two-way SMS thread so the inbox has a conversation on first login.
+  await prisma.smsLog.upsert({
+    where: { id: "seed-sms-inbound-1" },
+    update: {},
+    create: {
+      id: "seed-sms-inbound-1",
+      clientId: client1.id,
+      purpose: "inbound_sms",
+      direction: "INBOUND",
+      status: "DELIVERED",
+      fromNumber: client1.phone,
+      messageBody: "Yes, see you tomorrow!",
+      externalRef: "sms_inbound_seed",
+      provider: "twilio_mock",
+    },
+  });
+
+  await prisma.smsLog.upsert({
+    where: { id: "seed-sms-auto-reply-1" },
+    update: {},
+    create: {
+      id: "seed-sms-auto-reply-1",
+      clientId: client1.id,
+      appointmentId: appt1.id,
+      purpose: "sms_auto_reply_confirm",
+      direction: "OUTBOUND",
+      status: "DELIVERED",
+      toNumber: client1.phone,
+      messageBody:
+        "Thanks! Your appointment is confirmed. Reply RESCHEDULE if anything changes.",
+      externalRef: "sms_auto_reply_seed",
+      provider: "twilio_mock",
+    },
+  });
+
   await prisma.emailLog.upsert({
     where: { id: "seed-email-confirm-1" },
     update: {},

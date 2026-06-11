@@ -112,7 +112,28 @@ async function applyWebhookSideEffects(
 
   if (eventType === "sms" || eventType === "outbound-call") {
     const smsStatus = String(payload.MessageStatus ?? payload.status ?? "");
-    if ((messageSid || smsLogId) && smsStatus) {
+    const inboundBody = String(payload.Body ?? payload.body ?? payload.messageBody ?? "");
+    const inboundFrom = String(payload.From ?? payload.from ?? payload.fromNumber ?? "");
+
+    if (eventType === "sms" && inboundBody && inboundFrom && !smsStatus) {
+      const { smsConversationService } = await import(
+        "@/services/sms-conversation.service"
+      );
+      await smsConversationService
+        .processInboundSms({
+          fromNumber: inboundFrom,
+          toNumber: String(payload.To ?? payload.toNumber ?? "") || undefined,
+          body: inboundBody,
+          externalRef: messageSid || undefined,
+          provider: "medflow_webhook",
+        })
+        .catch((err) => {
+          logger.error("inbound_sms_processing_failed", {
+            error: err instanceof Error ? err.message : String(err),
+            messageSid,
+          });
+        });
+    } else if ((messageSid || smsLogId) && smsStatus) {
       await prisma.smsLog.updateMany({
         where: smsLogId
           ? { id: smsLogId }
@@ -246,6 +267,30 @@ export async function handleTwilioSmsWebhook(
   const messageSid = params.get("MessageSid") ?? "";
   const status = params.get("MessageStatus") ?? "";
 
+  if (isInboundTwilioSmsPayload(params)) {
+    const { smsConversationService } = await import(
+      "@/services/sms-conversation.service"
+    );
+    await smsConversationService
+      .processInboundSms({
+        fromNumber: params.get("From") ?? "",
+        toNumber: params.get("To") ?? undefined,
+        body: params.get("Body") ?? "",
+        externalRef: messageSid || undefined,
+        provider: "twilio",
+      })
+      .catch((err) => {
+        logger.error("inbound_sms_processing_failed", {
+          error: err instanceof Error ? err.message : String(err),
+          messageSid,
+        });
+      });
+    return new NextResponse("<Response></Response>", {
+      status: 200,
+      headers: { "Content-Type": "text/xml" },
+    });
+  }
+
   if (messageSid && status) {
     await prisma.smsLog.updateMany({
       where: { externalRef: messageSid },
@@ -257,6 +302,19 @@ export async function handleTwilioSmsWebhook(
     status: 200,
     headers: { "Content-Type": "text/xml" },
   });
+}
+
+/**
+ * Twilio inbound messages carry Body/From with SmsStatus=received; outbound
+ * delivery callbacks carry MessageStatus and no patient Body.
+ */
+export function isInboundTwilioSmsPayload(params: URLSearchParams): boolean {
+  const from = params.get("From");
+  const body = params.get("Body");
+  if (!from || body === null) return false;
+  const smsStatus = (params.get("SmsStatus") ?? "").toLowerCase();
+  if (smsStatus === "received") return true;
+  return !params.get("MessageStatus") && !smsStatus;
 }
 
 export async function handleTwilioVoiceWebhook(
